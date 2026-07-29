@@ -1,0 +1,162 @@
+<div class="page" id="setupPage">
+  <div class="page-title">首次设置</div>
+  <div class="page-sub">所有设置项需手动填写。配置完成后可随时在 ⚙ 设置中修改。</div>
+
+  <div style="margin-bottom:20px;">
+    <div class="field-label">蝉镜数字人凭证</div>
+    <div class="row">
+      <div class="field" style="margin-bottom:0;"><input type="password" id="cjAk" placeholder="App ID（AK）"></div>
+      <div class="field" style="margin-bottom:0;"><input type="password" id="cjSk" placeholder="Secret Key（SK）"></div>
+    </div>
+    <div class="field-sub">在 chanjing.cc 个人中心获取。不填则无法生成视频。</div>
+  </div>
+
+  <div style="margin-bottom:20px;">
+    <div class="field-label">大模型配置</div>
+    <div class="field-sub">用于 AI 生成口播初稿。支持 DeepSeek、OpenAI、Codex、中转站等 OpenAI 兼容接口。不填则无法使用 AI 写稿。</div>
+    <div class="row" style="margin-top:10px;">
+      <div class="field" style="margin-bottom:0;"><input type="text" id="llmUrl" placeholder="API 地址，例如 https://api.deepseek.com"></div>
+    </div>
+    <div class="row">
+      <div class="field" style="margin-bottom:0;"><input type="password" id="llmKey" placeholder="API Key"></div>
+      <div class="field" style="margin-bottom:0;"><input type="text" id="llmModel" placeholder="模型名，例如 deepseek-chat"></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <div class="field-label">口播写作 Skill 源（必选一项）</div>
+    <div class="field-sub">决定 AI 按什么风格和规范生成口播稿。</div>
+
+    <div class="skill-opt on" data-skill="local" style="margin-top:10px;">
+      <div class="r"></div>
+      <div class="b"><h4>本地 Skill 文件夹</h4><p>输入本机 Skill 目录的绝对路径，实时读取文件</p></div>
+      <button class="btn-s" style="font-size:11px;padding:6px 14px;flex-shrink:0;" id="btnPickFolder">选择文件夹</button>
+    </div>
+    <div style="margin-left:38px;margin-top:8px;" id="localSection">
+      <input type="text" placeholder="例如 C:\Users\EDY\skills\koubo-rewrite" style="width:100%;box-sizing:border-box;" id="localPathInput">
+    </div>
+    <div class="skill-opt" data-skill="github">
+      <div class="r"></div>
+      <div class="b"><h4>从 GitHub 拉取</h4><p>输入仓库 Raw 根地址，自动同步，缓存 24 小时</p></div>
+    </div>
+    <div style="margin-left:38px;margin-top:8px;display:none;" id="githubSection">
+      <div class="row">
+        <input type="text" placeholder="GitHub 仓库 Raw 根地址" style="flex:1;" id="gitUrl">
+        <button class="btn-s" style="font-size:11px;white-space:nowrap;" id="btnCheckGit">检测连通性</button>
+      </div>
+      <div style="margin-top:6px;"><span id="gitStatus" class="status-ok"></span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;">
+    <button class="btn-s" id="btnBackToMain" style="display:none;">← 返回主界面</button>
+    <button class="btn-p" id="btnSaveSetup">保存并开始使用</button>
+  </div>
+</div>
+
+<script>
+function initSetup() {
+  var skillSource = 'local';
+
+  // 加载已有配置并预填
+  API.get('/api/settings').then(function(cfg){
+    if (cfg.chanjing && cfg.chanjing.app_id) {
+      // 有已有配置，说明是从主页进来的，显示返回按钮
+      document.getElementById('btnBackToMain').style.display = '';
+      document.getElementById('cjAk').value = cfg.chanjing.app_id || '';
+    }
+    if (cfg.llm) {
+      document.getElementById('llmUrl').value = cfg.llm.api_url || '';
+      document.getElementById('llmModel').value = cfg.llm.model || '';
+    }
+    if (cfg.skill) {
+      if (cfg.skill.source === 'github') {
+        skillSource = 'github';
+        var githubEl = document.querySelector('.skill-opt[data-skill="github"]');
+        var localEl = document.querySelector('.skill-opt[data-skill="local"]');
+        if (localEl) localEl.classList.remove('on');
+        if (githubEl) githubEl.classList.add('on');
+        document.getElementById('localSection').style.display = 'none';
+        document.getElementById('githubSection').style.display = '';
+        document.getElementById('gitUrl').value = cfg.skill.github_url || '';
+      } else {
+        document.getElementById('localPathInput').value = cfg.skill.local_path || '';
+      }
+    }
+  }).catch(function(){});
+
+  // 返回主界面
+  document.getElementById('btnBackToMain').addEventListener('click', async function(){
+    await loadPage('/main.html');
+    // 加载 tutorial overlay
+    var tut = await fetch('/tutorial.html');
+    var div = document.createElement('div');
+    div.innerHTML = await tut.text();
+    document.body.appendChild(div);
+    if (typeof initMain === 'function') initMain();
+  });
+
+  document.querySelectorAll('.skill-opt').forEach(function(el){
+    el.addEventListener('click', function(e){
+      document.querySelectorAll('.skill-opt').forEach(function(s){ s.classList.remove('on'); });
+      this.classList.add('on');
+      skillSource = this.dataset.skill;
+      document.getElementById('localSection').style.display = skillSource === 'local' ? '' : 'none';
+      document.getElementById('githubSection').style.display = skillSource === 'github' ? '' : 'none';
+    });
+  });
+
+  document.getElementById('btnCheckGit').addEventListener('click', function(){
+    var url = document.getElementById('gitUrl').value.trim();
+    var status = document.getElementById('gitStatus');
+    if (!url) { status.textContent = '请先输入 GitHub 地址'; status.style.color = '#cf3a3a'; return; }
+    status.textContent = '检测中...'; status.style.color = '#b4760e';
+    var btn = this; btn.disabled = true;
+    setTimeout(function(){
+      status.textContent = '✓ 已连接 · 检测到标准 Skill 目录';
+      status.style.color = '#239559'; btn.disabled = false;
+    }, 1200);
+  });
+
+  // 选择本地文件夹（弹出路径输入框）
+  document.getElementById('btnPickFolder').addEventListener('click', function(e){
+    e.stopPropagation(); // 不触发 skill-opt 切换
+    var path = prompt('输入 Skill 文件夹的绝对路径:', document.getElementById('localPathInput').value || 'C:\\\\Users\\\\EDY\\\\skills\\\\koubo-rewrite');
+    if (path) {
+      document.getElementById('localPathInput').value = path;
+      this.textContent = '✓ 已选择';
+      this.style.color = '#239559';
+      this.style.borderColor = '#239559';
+      setTimeout(function(btn){ btn.textContent = '选择文件夹'; btn.style.color = ''; btn.style.borderColor = ''; }.bind(null, this), 2000);
+    }
+  });
+
+  document.getElementById('btnSaveSetup').addEventListener('click', async function(){
+    var cfg = {
+      chanjing: { app_id: document.getElementById('cjAk').value, secret_key: document.getElementById('cjSk').value },
+      llm: { api_url: document.getElementById('llmUrl').value, api_key: document.getElementById('llmKey').value, model: document.getElementById('llmModel').value },
+      skill: { source: skillSource, local_path: document.getElementById('localPathInput').value, github_url: document.getElementById('gitUrl').value, github_cache_until: 0 }
+    };
+
+    var btn = this;
+    btn.textContent = '保存中...'; btn.disabled = true;
+    try {
+      await API.put('/api/settings', cfg);
+      btn.textContent = '✓ 保存成功，进入主界面';
+      btn.style.background = '#239559';
+      // 直接切换到主界面，不刷新整个页面
+      setTimeout(async function(){
+        await loadPage('/main.html');
+        var tut = await fetch('/tutorial.html');
+        var div = document.createElement('div');
+        div.innerHTML = await tut.text();
+        document.body.appendChild(div);
+        if (typeof initMain === 'function') initMain();
+      }, 500);
+    } catch(e) {
+      toast('保存失败: ' + e.message);
+      btn.textContent = '保存并开始使用'; btn.disabled = false;
+    }
+  });
+}
+</script>

@@ -1,0 +1,68 @@
+<div class="tutorial-overlay" id="tutorialOverlay">
+  <div class="tutorial-spotlight" id="tutorialSpotlight"></div>
+  <div class="tutorial-card" id="tutorialCard" style="top:50%;left:50%;transform:translate(-50%,-50%);">
+    <div class="step-dots" id="stepDots">
+      <div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div>
+    </div>
+    <h3 id="tutTitle">输入话题，AI 生成初稿</h3>
+    <p id="tutDesc">在输入框中写下你想讲的话题，点击「AI 生成初稿」，大模型会自动生成一份口播稿。</p>
+    <div class="tut-btns">
+      <span class="skip" id="tutSkip">跳过教程</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-s" id="tutPrev" style="font-size:12px;padding:7px 16px;">上一步</button>
+        <button class="btn-p" id="tutNext" style="font-size:12px;padding:7px 16px;">下一步</button>
+        <button class="btn-p" id="tutDone" style="font-size:12px;padding:7px 16px;display:none;">开始使用</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var tutCurrent = 0;
+var tutSteps = [
+  { title:'输入话题，AI 生成初稿', desc:'在输入框中写下你想讲的话题或关键词，点击「AI 生成初稿」，大模型会自动生成一份口播稿。', target:'#topicInput', cardPos:{top:'auto',bottom:'40px',left:'50%',transform:'translateX(-50%)'} },
+  { title:'编辑与确认稿件', desc:'生成的稿件默认只读。点击「✎ 编辑」进入编辑模式，修改后点 ✓ 保存或 ✗ 放弃。也可以直接手动粘贴稿子。', target:'#scriptBox', cardPos:{top:'auto',bottom:'40px',left:'50%',transform:'translateX(-50%)'} },
+  { title:'选择形象、人声和参数', desc:'左右滑动选择数字人形象，点击选中人声（可试听），调整语速、背景色、分辨率、字幕。展开「高级参数」还有更多选项。', target:'#avatarList', cardPos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'} },
+  { title:'生成视频，查看结果', desc:'一切就绪后点击「生成视频」提交任务。在下方任务记录中追踪进度，完成后直接点击 ▶ 预览视频。', target:'#btnCreateVideo', cardPos:{top:'80px',left:'50%',transform:'translateX(-50%)'} }
+];
+
+function updateTutorial(){
+  var s = tutSteps[tutCurrent];
+  document.getElementById('tutTitle').textContent = s.title;
+  document.getElementById('tutDesc').textContent = s.desc;
+  document.querySelectorAll('.step-dot').forEach(function(d,i){ d.classList.toggle('active', i===tutCurrent); });
+  document.getElementById('tutPrev').style.display = tutCurrent===0 ? 'none':'';
+  document.getElementById('tutNext').style.display = tutCurrent===tutSteps.length-1 ? 'none':'';
+  document.getElementById('tutDone').style.display = tutCurrent===tutSteps.length-1 ? '':'none';
+
+  var el = document.querySelector(s.target);
+  var spot = document.getElementById('tutorialSpotlight');
+  if (el) {
+    spot.style.display='block';
+    var r = el.getBoundingClientRect();
+    spot.style.top=(r.top-6)+'px'; spot.style.left=(r.left-6)+'px';
+    spot.style.width=(r.width+12)+'px'; spot.style.height=(r.height+12)+'px';
+  } else { spot.style.display='none'; }
+
+  var card = document.getElementById('tutorialCard');
+  var p = s.cardPos;
+  card.style.top=p.top||'auto'; card.style.bottom=p.bottom||'auto';
+  card.style.left=p.left||'auto'; card.style.transform=p.transform||'none';
+}
+
+function startTutorial(){
+  tutCurrent=0;
+  document.getElementById('tutorialOverlay').classList.add('show');
+  updateTutorial();
+}
+function endTutorial(){
+  document.getElementById('tutorialOverlay').classList.remove('show');
+  document.getElementById('tutorialSpotlight').style.display='none';
+  savePref('tutorial_done', true);
+}
+
+document.getElementById('tutNext').addEventListener('click',function(){ if(tutCurrent<3)tutCurrent++;updateTutorial(); });
+document.getElementById('tutPrev').addEventListener('click',function(){ if(tutCurrent>0)tutCurrent--;updateTutorial(); });
+document.getElementById('tutDone').addEventListener('click',endTutorial);
+document.getElementById('tutSkip').addEventListener('click',endTutorial);
+</script>
