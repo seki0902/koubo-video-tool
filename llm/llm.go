@@ -27,6 +27,11 @@ type chatResponse struct {
 	} `json:"error,omitempty"`
 }
 
+// ScriptGenerator 定义口播稿生成接口，便于测试时 mock
+type ScriptGenerator interface {
+	GenerateScript(apiURL, apiKey, model, topic, systemPrompt string) (string, error)
+}
+
 // GenerateScript 调用 OpenAI 兼容 API 生成口播稿
 func GenerateScript(apiURL, apiKey, model, topic, systemPrompt string) (string, error) {
 	req := chatRequest{

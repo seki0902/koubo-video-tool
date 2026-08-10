@@ -1,40 +1,40 @@
 <div class="page" id="mainPage">
-  <div class="page-title">主界面 <span style="font-size:11px;color:#86868b;font-weight:400;cursor:pointer;margin-left:8px;" id="btnReTutorial">📖 使用教程</span><span style="font-size:14px;cursor:pointer;float:right;" id="btnSettings" title="设置">⚙️ 设置</span></div>
-  <div class="page-sub">输入话题 → AI 生成口播稿 → 配置参数 → 生成视频</div>
+  <div class="page-title">&#20027;&#30028;&#38754; <span style="font-size:11px;color:#86868b;font-weight:400;cursor:pointer;margin-left:8px;" id="btnReTutorial">&#128214; &#20351;&#29992;&#25945;&#31243;</span><span style="font-size:14px;cursor:pointer;float:right;" id="btnSettings" title="&#35774;&#32622;">&#9881;&#65039; &#35774;&#32622;</span></div>
+  <div class="page-sub">&#36755;&#20837;&#35805;&#39064; &rarr; AI &#29983;&#25104;&#21475;&#25773;&#31295; &rarr; &#37197;&#32622;&#21442;&#25968; &rarr; &#29983;&#25104;&#35270;&#39057;</div>
 
-  <!-- 稿件区 -->
+  <!-- script area -->
   <div style="margin-bottom:22px;">
-    <div class="field-label">稿件</div>
+    <div class="field-label">&#31295;&#20214;</div>
     <div class="row" style="margin-bottom:12px;">
-      <input type="text" id="topicInput" placeholder="输入话题，AI 自动生成口播初稿" style="flex:1;">
-      <button class="btn-p" id="btnGenerate" style="font-size:12px;white-space:nowrap;padding:10px 18px;">AI 生成初稿</button>
+      <input type="text" id="topicInput" placeholder="&#36755;&#20837;&#35805;&#39064;&#65292;AI &#33258;&#21160;&#29983;&#25104;&#21475;&#25773;&#21021;&#31295;" style="flex:1;">
+      <button class="btn-p" id="btnGenerate" style="font-size:12px;white-space:nowrap;padding:10px 18px;">AI &#29983;&#25104;&#21021;&#31295;</button>
     </div>
     <div class="script-box readonly" id="scriptBox">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span style="font-size:11px;color:#86868b;">DeepSeek 输出</span>
-        <button class="btn-s" id="btnEdit" style="font-size:11px;padding:6px 16px;">✎ 编辑</button>
+        <span style="font-size:11px;color:#86868b;">DeepSeek &#36755;&#20986;</span>
+        <button class="btn-s" id="btnEdit" style="font-size:11px;padding:6px 16px;">&#9998; &#32534;&#36753;</button>
         <div class="editor-overlay" id="editActions">
-          <button class="btn-s" id="btnSave" style="color:#239559;border-color:#239559;padding:6px 14px;font-size:12px;">✓ 保存</button>
-          <button class="btn-s" id="btnCancel" style="color:#cf3a3a;border-color:#cf3a3a;padding:6px 14px;font-size:12px;">✗ 放弃</button>
+          <button class="btn-s" id="btnSave" style="color:#239559;border-color:#239559;padding:6px 14px;font-size:12px;">&#10003; &#20445;&#23384;</button>
+          <button class="btn-s" id="btnCancel" style="color:#cf3a3a;border-color:#cf3a3a;padding:6px 14px;font-size:12px;">&#10007; &#25918;&#24323;</button>
         </div>
       </div>
       <div contenteditable="false" id="scriptContent" style="font-size:14px;line-height:2;color:#3a3a3c;">
-        <p style="margin:0 0 8px;"><strong>AI 时代，内容创作者最头疼的不是没有工具，而是工具太多。</strong></p>
-        <p style="margin:0 0 8px;">上午用 A 工具写稿，下午用 B 工具剪视频，晚上用 C 工具看数据。每天都在工具间跳来跳去。</p>
-        <p style="margin:0 0 8px;">你需要的不是更多工具，而是一个能串起来的流程。</p>
-        <p style="margin:0;">今天聊聊怎么用最简单的工具链，把一小时的工作压缩到十分钟。</p>
+        <p style="margin:0 0 8px;"><strong>AI &#26102;&#20195;&#65292;&#20869;&#23481;&#21019;&#20316;&#32773;&#26368;&#22836;&#30140;&#30340;&#19981;&#26159;&#27809;&#26377;&#24037;&#20855;&#65292;&#32780;&#26159;&#24037;&#20855;&#22826;&#22810;&#12290;</strong></p>
+        <p style="margin:0 0 8px;">&#19978;&#21320;&#29992; A &#24037;&#20855;&#20889;&#31295;&#65292;&#19979;&#21320;&#29992; B &#24037;&#20855;&#21098;&#35270;&#39057;&#65292;&#26202;&#19978;&#29992; C &#24037;&#20855;&#30475;&#25968;&#25454;&#12290;&#27599;&#22825;&#37117;&#22312;&#24037;&#20855;&#38388;&#36339;&#26469;&#36339;&#21435;&#12290;</p>
+        <p style="margin:0 0 8px;">&#20320;&#38656;&#35201;&#30340;&#19981;&#26159;&#26356;&#22810;&#24037;&#20855;&#65292;&#32780;&#26159;&#19968;&#20010;&#33021;&#20018;&#36215;&#26469;&#30340;&#27969;&#31243;&#12290;</p>
+        <p style="margin:0;">&#20170;&#22825;&#32842;&#32842;&#24590;&#20040;&#29992;&#26368;&#31616;&#21333;&#30340;&#24037;&#20855;&#38142;&#65292;&#25226;&#19968;&#23567;&#26102;&#30340;&#24037;&#20316;&#21387;&#32553;&#21040;&#21313;&#20998;&#38047;&#12290;</p>
       </div>
     </div>
   </div>
 
   <hr class="sep">
 
-  <!-- 视频参数 -->
+  <!-- video params -->
   <div>
-    <div class="field-label">视频参数</div>
+    <div class="field-label">&#35270;&#39057;&#21442;&#25968;</div>
 
     <div class="field" style="margin-bottom:0;">
-      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">数字人形象</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">&#25968;&#23383;&#20154;&#24418;&#35937;</div>
       <div class="avatar-scroll">
         <button class="arr" id="avatarPrev">&lt;</button>
         <div class="avatar-list" id="avatarList"></div>
@@ -43,7 +43,7 @@
     </div>
 
     <div class="field" style="margin-bottom:0;">
-      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">人声</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">&#20154;&#22768;</div>
       <div class="avatar-scroll">
         <button class="arr" id="voicePrev">&lt;</button>
         <div class="avatar-list" id="voiceList"></div>
@@ -53,11 +53,11 @@
 
     <div class="row" style="align-items:flex-start;">
       <div class="field">
-        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">语速</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">&#35821;&#36895;</div>
         <select id="speedSelect"></select>
       </div>
       <div class="field">
-        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">背景色</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">&#32972;&#26223;&#33394;</div>
         <div class="chip-group" id="bgGroup" style="display:flex;gap:6px;flex-wrap:wrap;">
           <div class="chip on" data-val="#FFFFFF">#FFFFFF</div>
           <div class="chip" data-val="#1A1A2E">#1A1A2E</div>
@@ -69,50 +69,50 @@
 
     <div class="row" style="align-items:flex-start;">
       <div class="field">
-        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">分辨率</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">&#20998;&#36776;&#29575;</div>
         <div class="chip-group" id="resGroup" style="display:flex;gap:6px;">
           <div class="chip on" data-val="1080P">1080P</div>
           <div class="chip" data-val="720P">720P</div>
         </div>
       </div>
       <div class="field">
-        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">字幕</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">&#23383;&#24149;</div>
         <div class="row" style="gap:10px;">
           <div class="toggle on" id="subtitleToggle"><div class="k"></div></div>
-          <span style="font-size:13px;color:#4a5068;" id="subtitleLabel">开启</span>
+          <span style="font-size:13px;color:#4a5068;" id="subtitleLabel">&#24320;&#21551;</span>
         </div>
       </div>
     </div>
 
     <details style="margin-top:18px;">
-      <summary style="font-size:12px;color:#86868b;cursor:pointer;">高级参数</summary>
+      <summary style="font-size:12px;color:#86868b;cursor:pointer;">&#39640;&#32423;&#21442;&#25968;</summary>
       <div class="row" style="margin-top:14px;">
         <div class="field" style="margin-bottom:12px;">
-          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">音量</div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">&#38899;&#37327;</div>
           <select id="volSelect"><option>60</option><option>70</option><option>80</option><option>90</option><option selected>100</option></select>
         </div>
         <div class="field" style="margin-bottom:12px;">
-          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">驱动模式</div>
-          <select id="driveSelect"><option value="">正常</option><option selected>random</option></select>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">&#39537;&#21160;&#27169;&#24335;</div>
+          <select id="driveSelect"><option value="">&#27491;&#24120;</option><option selected>random</option></select>
         </div>
       </div>
       <div class="row">
         <div class="field" style="margin-bottom:12px;">
-          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">人像类型</div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">&#20154;&#20687;&#31867;&#22411;</div>
           <select id="figureSelect"><option selected>stand_body</option><option>half_body</option></select>
         </div>
         <div class="field" style="margin-bottom:12px;">
-          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">播放模式</div>
-          <select id="backwaySelect"><option value="1" selected>正常</option><option value="2">倒放</option></select>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">&#25773;&#25918;&#27169;&#24335;</div>
+          <select id="backwaySelect"><option value="1" selected>&#27491;&#24120;</option><option value="2">&#20498;&#25918;</option></select>
         </div>
       </div>
       <div class="row">
         <div class="field" style="margin-bottom:12px;">
-          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">语言</div>
-          <select id="langSelect"><option value="cn" selected>中文</option><option value="en">英文</option></select>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:5px;">&#35821;&#35328;</div>
+          <select id="langSelect"><option value="cn" selected>&#20013;&#25991;</option><option value="en">&#33521;&#25991;</option></select>
         </div>
         <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:10px;">
-          <span style="font-size:12px;color:#6b7280;">合规水印</span>
+          <span style="font-size:12px;color:#6b7280;">&#21512;&#35268;&#27700;&#21360;</span>
           <div class="toggle off" id="watermarkToggle"><div class="k"></div></div>
         </div>
       </div>
@@ -120,18 +120,23 @@
   </div>
 
   <div style="text-align:center;margin-top:26px;">
-    <button class="btn-p" id="btnCreateVideo" style="font-size:15px;padding:14px 56px;">生成视频</button>
+    <button class="btn-p" id="btnCreateVideo" style="font-size:15px;padding:14px 56px;">&#29983;&#25104;&#35270;&#39057;</button>
   </div>
 
   <hr class="sep">
 
-  <!-- 任务列表 -->
+  <!-- task list -->
   <div>
-    <div class="field-label">任务记录</div>
-    <div id="taskList"><p style="font-size:12px;color:#86868b;">暂无任务</p></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div class="field-label" style="margin-bottom:0;">&#20219;&#21153;&#35760;&#24405; <span style="font-size:10px;color:#86868b;font-weight:400;">&#20445;&#30041; 30 &#22825;</span></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-s" id="btnRefreshTasks" style="font-size:11px;padding:6px 10px;" title="&#21516;&#27493;&#34633;&#38236;&#20219;&#21153;&#29366;&#24577;">&#21047;&#26032;&#29366;&#24577;</button>
+        <button class="btn-s" id="btnClearTasks" style="font-size:11px;padding:6px 10px;" title="&#28165;&#31354;&#24050;&#23436;&#25104;&#30340;&#20219;&#21153;&#35760;&#24405;">&#28165;&#31354;&#35760;&#24405;</button>
+      </div>
+    </div>
+    <div id="taskList"><p style="font-size:12px;color:#86868b;">&#26242;&#26080;&#20219;&#21153;</p></div>
   </div>
 </div>
-
 <script>
 var selectedAvatar = '', selectedVoice = '';
 
@@ -141,19 +146,65 @@ function renderAvatarCard(a, on) {
 
 function renderVoiceCard(v, on) {
   var bars = [8,15,6,22,12,9,18,5].map(function(h){ return '<div class="bar" style="height:'+(on?h*0.6:h)+'px;"></div>'; }).join('');
-  return '<div class="voice-card'+(on?' on':'')+'" data-id="'+v.id+'"><div class="wave">'+bars+'</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+v.name+'</div><div style="font-size:10px;color:#86868b;">'+(v.gender||'')+' · '+(v.description||'')+'</div></div><span class="link" style="font-size:11px;" data-action="preview-voice">🔊 试听</span></div>';
+  return '<div class="voice-card'+(on?' on':'')+'" data-id="'+v.id+'"><div class="wave">'+bars+'</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+v.name+'</div><div style="font-size:10px;color:#86868b;">'+(v.gender||'')+' | '+(v.description||'')+'</div></div><span class="link" style="font-size:11px;" data-action="preview-voice">试听</span></div>';
+}
+
+function isTaskActive(t) {
+  return t && (t.status === 'pending' || t.status === 'generating');
+}
+
+function clampProgress(value) {
+  var n = parseInt(value || 0, 10);
+  if (isNaN(n) || n < 0) n = 0;
+  if (n > 100) n = 100;
+  return n;
+}
+
+function taskBadgeText(t) {
+  if (!t) return '处理中';
+  if (t.status === 'done') return '完成';
+  if (t.status === 'failed') return '失败';
+  if (t.status === 'timeout') return '超时';
+  if (t.status === 'pending') return '排队中';
+  if (t.status === 'generating') return '蝉镜处理中';
+  return '处理中';
+}
+
+async function refreshTaskRemote(taskID, btn) {
+  var orig = btn ? btn.textContent : '';
+  if (btn) {
+    btn.textContent = '刷新中';
+    btn.style.pointerEvents = 'none';
+  }
+  try {
+    await API.post('/api/tasks/' + taskID + '/refresh');
+    toast('状态已同步');
+    await refreshTasks();
+  } catch (e) {
+    toast('刷新失败: ' + e.message);
+  }
+  if (btn) {
+    btn.textContent = orig;
+    btn.style.pointerEvents = '';
+  }
 }
 
 function renderTask(t) {
-  var icon = t.status === 'done' ? '✅' : t.status === 'failed' || t.status === 'timeout' ? '❌' : '⏳';
+  var progress = clampProgress(t.progress);
+  var icon = t.status === 'done' ? '&#10003;' : t.status === 'failed' || t.status === 'timeout' ? '&#10007;' : '&#9679;';
   var badgeCls = t.status === 'done' ? 'done' : t.status === 'failed' || t.status === 'timeout' ? 'fail' : 'ing';
-  var badgeText = t.status === 'done' ? '完成' : t.status === 'failed' ? '失败' : t.status === 'timeout' ? '超时' : t.progress+'%';
-  var right = t.status === 'done'
-    ? '<span class="link" data-action="play" data-url="'+t.video_url+'">▶ 预览</span><span class="link" data-action="copy" data-url="'+t.video_url+'">📋</span>'
+  var badgeText = taskBadgeText(t);
+  var taskScript = t.script || (t.params && t.params.audio && t.params.audio.tts && t.params.audio.tts.text && t.params.audio.tts.text[0]) || '';
+  var scriptBtn = taskScript ? '<span class="link" data-action="script" data-script="'+encodeURIComponent(taskScript)+'">&#31295;&#20214;</span>' : '';
+  var linkBtn = t.video_url ? '<span class="link" data-action="link" data-url="'+encodeURIComponent(t.video_url)+'">&#38142;&#25509;</span>' : '';
+  var deleteBtn = '<span class="link" data-action="delete" data-id="'+t.task_id+'" title="&#21024;&#38500;&#35760;&#24405;" style="margin-left:auto;font-size:16px;line-height:1;">&#128465;</span>';
+  var statusView = '<div class="bar-out"><div class="bar-fill" style="width:'+progress+'%;"></div></div><span class="badge '+badgeCls+'">'+badgeText+'</span>';
+  var actions = t.status === 'done'
+    ? scriptBtn + linkBtn + deleteBtn
     : t.status === 'failed' || t.status === 'timeout'
-    ? '<span class="link" data-action="retry" data-id="'+t.task_id+'">🔄 重试</span>'
-    : '<div class="bar-out"><div class="bar-fill" style="width:'+t.progress+'%;"></div></div><span class="badge '+badgeCls+'">'+badgeText+'</span>';
-  return '<div class="task-row">'+icon+'<div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+t.task_id+'</div><div style="font-size:10px;color:#86868b;">'+t.created_at+'</div></div>'+right+'</div>';
+    ? scriptBtn + linkBtn + deleteBtn
+    : scriptBtn + statusView + deleteBtn;
+  return '<div class="task-wrap"><div class="task-row">'+icon+'<div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+t.task_id+'</div><div style="font-size:10px;color:#86868b;">'+t.created_at+'</div></div><div style="display:flex;align-items:center;gap:10px;margin-left:10px;">'+actions+'</div></div></div>';
 }
 
 async function refreshTasks() {
@@ -161,109 +212,203 @@ async function refreshTasks() {
     var data = await API.get('/api/tasks');
     var tasks = data.tasks || [];
     var el = document.getElementById('taskList');
-    if (tasks.length === 0) { el.innerHTML = '<p style="font-size:12px;color:#86868b;">暂无任务</p>'; }
-    else { el.innerHTML = tasks.reverse().map(renderTask).join(''); }
+    if (tasks.length === 0) {
+      el.innerHTML = '<p style="font-size:12px;color:#86868b;">&#26242;&#26080;&#20219;&#21153;</p>';
+    } else {
+      el.innerHTML = tasks.reverse().map(renderTask).join('');
+    }
     bindTaskActions();
-  } catch(e) {}
+  } catch (e) {}
 }
 
+async function refreshVisibleTaskStatuses() {
+  try {
+    var data = await API.get('/api/tasks');
+    var tasks = (data.tasks || []).filter(isTaskActive);
+    if (tasks.length === 0) {
+      toast('\u6ca1\u6709\u9700\u8981\u540c\u6b65\u7684\u4efb\u52a1');
+      return;
+    }
+    for (var i = 0; i < tasks.length; i++) {
+      await API.post('/api/tasks/' + tasks[i].task_id + '/refresh');
+    }
+    toast('\u5df2\u540c\u6b65\u4efb\u52a1\u72b6\u6001');
+    await refreshTasks();
+  } catch (e) {
+    toast('\u540c\u6b65\u5931\u8d25: ' + e.message);
+  }
+}
 function bindTaskActions() {
-  document.querySelectorAll('.link[data-action]').forEach(function(btn){
-    btn.addEventListener('click', function(e){
+  document.querySelectorAll('.link[data-action]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var a = this.dataset.action;
-      if (a === 'play') {
-        var url = this.dataset.url;
-        document.getElementById('taskList').insertAdjacentHTML('beforeend','<div style="margin-top:12px;"><video src="'+url+'" controls style="width:100%;max-width:300px;border-radius:10px;"></video></div>');
+      if (a === 'link') {
+        var wrapLink = this.closest('.task-wrap');
+        var existingLink = wrapLink && wrapLink.querySelector('.task-link');
+        if (existingLink) {
+          existingLink.remove();
+          return;
+        }
+        var url = decodeURIComponent(this.dataset.url || '');
+        if (!url) return;
+        var linkPanel = document.createElement('div');
+        linkPanel.className = 'task-link';
+        linkPanel.style.cssText = 'margin-top:8px;padding:10px 12px;background:#f6f7fb;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;line-height:1.7;word-break:break-all;color:#1f2937;';
+        var anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.textContent = url;
+        linkPanel.appendChild(anchor);
+        if (wrapLink) wrapLink.appendChild(linkPanel);
       }
-      if (a === 'copy') { navigator.clipboard.writeText(this.dataset.url); toast('链接已复制'); }
-      if (a === 'retry') toast('重试功能开发中');
+      if (a === 'script') {
+        var wrap = this.closest('.task-wrap');
+        var existing = wrap && wrap.querySelector('.task-script');
+        if (existing) {
+          existing.remove();
+          return;
+        }
+        var script = decodeURIComponent(this.dataset.script || '');
+        if (!script) return;
+        var panel = document.createElement('div');
+        panel.className = 'task-script';
+        panel.style.cssText = 'margin-top:8px;padding:10px 12px;background:#f6f7fb;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;line-height:1.7;white-space:pre-wrap;color:#1f2937;';
+        panel.textContent = script;
+        if (wrap) wrap.appendChild(panel);
+      }
+      if (a === 'delete' && confirm('Delete this local task record?')) {
+        API.del('/api/tasks/' + this.dataset.id).then(function() {
+          toast('Deleted');
+          refreshTasks();
+        }).catch(function(err) {
+          toast('Delete failed: ' + err.message);
+        });
+      }
     });
   });
 }
 
 function initMain() {
-  // Load avatars
-  API.get('/api/avatars').then(function(avatars){
+  var speedSel = document.getElementById('speedSelect');
+  for (var i = 50; i <= 200; i += 10) {
+    speedSel.innerHTML += '<option value="'+(i/100)+'"'+(i === 100 ? ' selected' : '')+'>'+(i/100).toFixed(1)+'x</option>';
+  }
+  speedSel.value = loadPref('main_speed', '1');
+  document.getElementById('volSelect').value = loadPref('main_volume', '100');
+  document.getElementById('figureSelect').value = loadPref('main_figureType', 'stand_body');
+  document.getElementById('driveSelect').value = loadPref('main_driveMode', 'random');
+  document.getElementById('backwaySelect').value = loadPref('main_backway', '1');
+  document.getElementById('langSelect').value = loadPref('main_language', 'cn');
+
+  var paramsToSave = ['speedSelect', 'volSelect', 'figureSelect', 'driveSelect', 'backwaySelect', 'langSelect'];
+  paramsToSave.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', function() { savePref('main_' + id.replace('Select', ''), el.value); });
+  });
+
+  var topicEl = document.getElementById('topicInput');
+  if (topicEl) {
+    topicEl.value = '';
+  }
+
+  var savedScript = loadPref('script_content', '');
+  if (!savedScript) {
+    var savedScriptText = loadPref('saved_script_text', '');
+    if (savedScriptText) savedScript = savedScriptText;
+  }
+  if (savedScript) {
+    if (savedScript.indexOf('<') >= 0) {
+      document.getElementById('scriptContent').innerHTML = savedScript;
+    } else {
+      document.getElementById('scriptContent').innerText = savedScript;
+    }
+  }
+
+  API.get('/api/avatars').then(function(avatars) {
     if (avatars.length === 0) {
       document.getElementById('avatarList').innerHTML = '<div class="a-card"><div class="img">👤</div><div class="name">请先配置</div></div>';
     } else {
       selectedAvatar = loadPref('avatar_id', avatars[0].id);
-      document.getElementById('avatarList').innerHTML = avatars.map(function(a){ return renderAvatarCard(a, a.id === selectedAvatar); }).join('');
+      document.getElementById('avatarList').innerHTML = avatars.map(function(a) { return renderAvatarCard(a, a.id === selectedAvatar); }).join('');
     }
     radioGroup('.a-card', document.getElementById('avatarList'));
-    document.querySelectorAll('.a-card').forEach(function(c){ c.addEventListener('click', function(){ selectedAvatar = this.dataset.id; savePref('avatar_id', selectedAvatar); }); });
+    document.querySelectorAll('.a-card').forEach(function(c) { c.addEventListener('click', function() { selectedAvatar = this.dataset.id; savePref('avatar_id', selectedAvatar); }); });
   });
 
-  // Load voices
-  API.get('/api/voices').then(function(voices){
+  API.get('/api/voices').then(function(voices) {
     if (voices.length === 0) {
       document.getElementById('voiceList').innerHTML = '<div class="voice-card"><div style="font-size:12px;">请先配置人声</div></div>';
     } else {
       selectedVoice = loadPref('voice_id', voices[0].id);
-      document.getElementById('voiceList').innerHTML = voices.map(function(v){ return renderVoiceCard(v, v.id === selectedVoice); }).join('');
+      document.getElementById('voiceList').innerHTML = voices.map(function(v) { return renderVoiceCard(v, v.id === selectedVoice); }).join('');
     }
     radioGroup('.voice-card', document.getElementById('voiceList'));
-    document.querySelectorAll('.voice-card').forEach(function(c){ c.addEventListener('click', function(){ selectedVoice = this.dataset.id; savePref('voice_id', selectedVoice); }); });
+    document.querySelectorAll('.voice-card').forEach(function(c) { c.addEventListener('click', function() { selectedVoice = this.dataset.id; savePref('voice_id', selectedVoice); }); });
   });
 
-  // Speed select
-  var speedSel = document.getElementById('speedSelect');
-  for (var i=50; i<=200; i+=10) { speedSel.innerHTML += '<option value="'+(i/100)+'"'+(i===100?' selected':'')+'>'+(i/100).toFixed(1)+'x</option>'; }
-
-  // Chip groups
-  document.querySelectorAll('.chip-group').forEach(function(g){ radioGroup('.chip', g); });
-  // Toggles
-  document.querySelectorAll('.toggle').forEach(function(t){ t.addEventListener('click',function(){ this.classList.toggle('on');this.classList.toggle('off'); }); });
-  document.getElementById('subtitleToggle').addEventListener('click', function(){
+  document.querySelectorAll('.chip-group').forEach(function(g) { radioGroup('.chip', g); });
+  document.querySelectorAll('.toggle').forEach(function(t) { t.addEventListener('click', function() { this.classList.toggle('on'); this.classList.toggle('off'); }); });
+  document.getElementById('subtitleToggle').addEventListener('click', function() {
     document.getElementById('subtitleLabel').textContent = this.classList.contains('on') ? '开启' : '关闭';
   });
 
-  // Scroll buttons
-  document.getElementById('avatarPrev').addEventListener('click', function(){ document.getElementById('avatarList').scrollBy({left:-210,behavior:'smooth'}); });
-  document.getElementById('avatarNext').addEventListener('click', function(){ document.getElementById('avatarList').scrollBy({left:210,behavior:'smooth'}); });
-  document.getElementById('voicePrev').addEventListener('click', function(){ document.getElementById('voiceList').scrollBy({left:-220,behavior:'smooth'}); });
-  document.getElementById('voiceNext').addEventListener('click', function(){ document.getElementById('voiceList').scrollBy({left:220,behavior:'smooth'}); });
+  document.getElementById('avatarPrev').addEventListener('click', function() { document.getElementById('avatarList').scrollBy({ left: -210, behavior: 'smooth' }); });
+  document.getElementById('avatarNext').addEventListener('click', function() { document.getElementById('avatarList').scrollBy({ left: 210, behavior: 'smooth' }); });
+  document.getElementById('voicePrev').addEventListener('click', function() { document.getElementById('voiceList').scrollBy({ left: -220, behavior: 'smooth' }); });
+  document.getElementById('voiceNext').addEventListener('click', function() { document.getElementById('voiceList').scrollBy({ left: 220, behavior: 'smooth' }); });
 
-  // Edit
-  document.getElementById('btnEdit').addEventListener('click', function(){
-    document.getElementById('scriptBox').classList.add('editing'); document.getElementById('scriptBox').classList.remove('readonly');
-    document.getElementById('scriptContent').setAttribute('contenteditable','true'); document.getElementById('scriptContent').focus();
-    this.style.display='none'; document.getElementById('editActions').style.display='flex';
+  document.getElementById('btnEdit').addEventListener('click', function() {
+    document.getElementById('scriptBox').classList.add('editing');
+    document.getElementById('scriptBox').classList.remove('readonly');
+    document.getElementById('scriptContent').setAttribute('contenteditable', 'true');
+    document.getElementById('scriptContent').focus();
+    this.style.display = 'none';
+    document.getElementById('editActions').style.display = 'flex';
   });
-  document.getElementById('btnSave').addEventListener('click', function(){
-    document.getElementById('scriptBox').classList.remove('editing'); document.getElementById('scriptBox').classList.add('readonly');
-    document.getElementById('scriptContent').setAttribute('contenteditable','false');
-    document.getElementById('btnEdit').style.display=''; document.getElementById('editActions').style.display='none';
+
+  document.getElementById('btnSave').addEventListener('click', function() {
+    document.getElementById('scriptBox').classList.remove('editing');
+    document.getElementById('scriptBox').classList.add('readonly');
+    document.getElementById('scriptContent').setAttribute('contenteditable', 'false');
+    document.getElementById('btnEdit').style.display = '';
+    document.getElementById('editActions').style.display = 'none';
+    savePref('script_content', document.getElementById('scriptContent').innerHTML);
+    savePref('saved_script_text', document.getElementById('scriptContent').innerText.trim());
     toast('稿件已保存');
   });
-  document.getElementById('btnCancel').addEventListener('click', function(){
-    document.getElementById('scriptBox').classList.remove('editing'); document.getElementById('scriptBox').classList.add('readonly');
-    document.getElementById('scriptContent').setAttribute('contenteditable','false');
-    document.getElementById('btnEdit').style.display=''; document.getElementById('editActions').style.display='none';
+
+  document.getElementById('btnCancel').addEventListener('click', function() {
+    document.getElementById('scriptBox').classList.remove('editing');
+    document.getElementById('scriptBox').classList.add('readonly');
+    document.getElementById('scriptContent').setAttribute('contenteditable', 'false');
+    document.getElementById('btnEdit').style.display = '';
+    document.getElementById('editActions').style.display = 'none';
   });
 
-  // AI generate
-  document.getElementById('btnGenerate').addEventListener('click', async function(){
+  document.getElementById('btnGenerate').addEventListener('click', async function() {
     var topic = document.getElementById('topicInput').value.trim();
     if (!topic) { toast('请输入话题'); return; }
     var btn = this; var orig = btn.textContent;
     btn.textContent = '生成中...'; btn.disabled = true;
     try {
-      var data = await API.post('/api/scripts/generate', {topic: topic});
-      document.getElementById('scriptContent').innerHTML = data.script.replace(/\n/g,'<br>');
+      var data = await API.post('/api/scripts/generate', { topic: topic });
+      document.getElementById('scriptContent').innerHTML = data.script.replace(/\n/g, '<br>');
       toast('稿件已生成');
-    } catch(e) {
+    } catch (e) {
       toast('生成失败: ' + e.message);
     }
     btn.textContent = orig; btn.disabled = false;
   });
 
-  // Create video
-  document.getElementById('btnCreateVideo').addEventListener('click', async function(){
+  document.getElementById('btnCreateVideo').addEventListener('click', async function() {
     if (!selectedAvatar) { toast('请先选择数字人形象'); return; }
     if (!selectedVoice) { toast('请先选择人声'); return; }
-    var script = document.getElementById('scriptContent').innerText.trim();
+    var script = loadPref('saved_script_text', '').trim();
+    if (!script) {
+      script = document.getElementById('scriptContent').innerText.trim();
+    }
     if (!script) { toast('稿件不能为空'); return; }
     var btn = this; var orig = btn.textContent;
     btn.textContent = '提交中...'; btn.disabled = true;
@@ -286,37 +431,47 @@ function initMain() {
       await API.post('/api/tasks', params);
       toast('任务已提交');
       refreshTasks();
-    } catch(e) {
+    } catch (e) {
       toast('提交失败: ' + e.message);
     }
     btn.textContent = orig; btn.disabled = false;
   });
+  document.getElementById('btnRefreshTasks').addEventListener('click', function() {
+    refreshVisibleTaskStatuses();
+  });
 
-  // Settings
-  document.getElementById('btnSettings').addEventListener('click', async function(){
+  document.getElementById('btnClearTasks').addEventListener('click', function() {
+    if (!confirm('\u786e\u5b9a\u6e05\u7a7a\u6240\u6709\u5df2\u5b8c\u6210\u548c\u5931\u8d25\u7684\u672c\u673a\u4efb\u52a1\u8bb0\u5f55\u5417\uff1f\u751f\u6210\u4e2d\u7684\u4efb\u52a1\u4f1a\u4fdd\u7559\u3002')) return;
+    API.del('/api/tasks').then(function(data) {
+      toast('\u5df2\u6e05\u7a7a ' + data.removed + ' \u6761\u8bb0\u5f55');
+      refreshTasks();
+    }).catch(function(err) {
+      toast('\u6e05\u7a7a\u5931\u8d25: ' + err.message);
+    });
+  });
+  document.getElementById('btnSettings').addEventListener('click', async function() {
     await loadPage('/setup.html');
     if (typeof initSetup === 'function') initSetup();
   });
 
-  // Tutorial
-  document.getElementById('btnReTutorial').addEventListener('click', function(){
+  document.getElementById('btnReTutorial').addEventListener('click', function() {
     if (typeof startTutorial === 'function') startTutorial();
   });
 
-  // Voice preview clicks
-  document.addEventListener('click', function(e){
+  document.addEventListener('click', function(e) {
     if (e.target.closest('[data-action="preview-voice"]')) {
       e.stopPropagation();
-      toast('试听功能需配置 preview_audio_url');
+      toast('试听功能需要配置 preview_audio_url');
     }
   });
 
   refreshTasks();
   setInterval(refreshTasks, 5000);
 
-  // Auto-show tutorial for first-time
   if (loadPref('tutorial_done', false) !== true) {
-    setTimeout(function(){ if (typeof startTutorial === 'function') startTutorial(); }, 800);
+    setTimeout(function() { if (typeof startTutorial === 'function') startTutorial(); }, 800);
   }
 }
 </script>
+
+

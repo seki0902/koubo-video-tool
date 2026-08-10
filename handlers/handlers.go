@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -17,7 +20,7 @@ import (
 type Handler struct {
 	DataDir   string
 	Store     *StorePaths
-	Chanjing  *chanjing.Client
+	Chanjing  chanjing.ClientInterface
 	Scheduler *scheduler.Scheduler
 }
 
@@ -28,7 +31,7 @@ type StorePaths struct {
 	Voices  string
 }
 
-func New(dataDir string, cj *chanjing.Client, sch *scheduler.Scheduler) *Handler {
+func New(dataDir string, cj chanjing.ClientInterface, sch *scheduler.Scheduler) *Handler {
 	return &Handler{
 		DataDir:   dataDir,
 		Chanjing:  cj,
@@ -111,10 +114,13 @@ func (h *Handler) handleGenerateScript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prompt, err := skill.BuildPrompt(&cfg)
+	prompt, files, err := skill.BuildPrompt(&cfg, req.Topic)
 	if err != nil {
 		writeError(w, 500, "Skill 源读取失败: "+err.Error())
 		return
+	}
+	if len(files) > 0 {
+		log.Printf("skill files loaded: %s", strings.Join(files, ", "))
 	}
 
 	// GitHub 源同步成功后持久化缓存时间
@@ -131,31 +137,68 @@ func (h *Handler) handleGenerateScript(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"script": script})
 }
 
-// POST /api/tasks, GET /api/tasks
+const taskRetention = 30 * 24 * time.Hour
+
+// POST /api/tasks, GET /api/tasks, DELETE /api/tasks
 func (h *Handler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
 		h.createTask(w, r)
 	case "GET":
+		_, _ = store.PruneExpiredTasks(h.Store.Tasks, time.Now().UTC().Add(-taskRetention))
 		tasks, err := store.LoadTasks(h.Store.Tasks)
 		if err != nil {
 			writeJSON(w, map[string]any{"tasks": []store.Task{}})
 			return
 		}
 		writeJSON(w, map[string]any{"tasks": tasks})
+	case "DELETE":
+		removed, err := store.ClearTerminalTasks(h.Store.Tasks)
+		if err != nil {
+			writeError(w, 500, "清空任务记录失败")
+			return
+		}
+		writeJSON(w, map[string]any{"removed": removed})
 	default:
-		writeError(w, 405, "仅支持 POST / GET")
+		writeError(w, 405, "仅支持 POST / GET / DELETE")
 	}
 }
 
-// GET /api/tasks/:id
+// GET /api/tasks/:id, POST /api/tasks/:id/retry, POST /api/tasks/:id/refresh
 func (h *Handler) handleTaskByID(w http.ResponseWriter, r *http.Request) {
-	taskID := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
-	if taskID == "" {
+	path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
+	if path == "" {
 		writeError(w, 400, "缺少 task_id")
 		return
 	}
 
+	// POST /api/tasks/:id/retry
+	if strings.HasSuffix(path, "/retry") && r.Method == "POST" {
+		taskID := strings.TrimSuffix(path, "/retry")
+		h.retryTask(w, r, taskID)
+		return
+	}
+	if strings.HasSuffix(path, "/refresh") && r.Method == "POST" {
+		taskID := strings.TrimSuffix(path, "/refresh")
+		h.refreshTask(w, r, taskID)
+		return
+	}
+	if r.Method == "DELETE" {
+		err := store.DeleteTask(h.Store.Tasks, path)
+		switch {
+		case errors.Is(err, store.ErrTaskNotFound):
+			writeError(w, 404, err.Error())
+		case errors.Is(err, store.ErrTaskInProgress):
+			writeError(w, 409, err.Error())
+		case err != nil:
+			writeError(w, 500, "删除任务记录失败")
+		default:
+			writeJSON(w, map[string]bool{"deleted": true})
+		}
+		return
+	}
+
+	taskID := path
 	tasks, err := store.LoadTasks(h.Store.Tasks)
 	if err != nil {
 		writeError(w, 500, "读取任务列表失败")
@@ -168,6 +211,98 @@ func (h *Handler) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeError(w, 404, "任务不存在")
+}
+
+func (h *Handler) refreshTask(w http.ResponseWriter, r *http.Request, taskID string) {
+	if h.Scheduler == nil {
+		writeError(w, 503, "浠诲姟鍒锋柊鍔熻兘涓嶅彲鐢?")
+		return
+	}
+	task, err := h.Scheduler.Refresh(taskID)
+	if err != nil {
+		writeError(w, 503, "鍒锋柊澶辫触: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{
+		"status": "ok",
+		"task":   task,
+	})
+}
+
+func (h *Handler) retryTask(w http.ResponseWriter, r *http.Request, taskID string) {
+	tasks, err := store.LoadTasks(h.Store.Tasks)
+	if err != nil {
+		writeError(w, 500, "读取任务列表失败")
+		return
+	}
+
+	var oldTask *store.Task
+	for i := range tasks {
+		if tasks[i].TaskID == taskID {
+			oldTask = &tasks[i]
+			break
+		}
+	}
+	if oldTask == nil {
+		writeError(w, 404, "任务不存在")
+		return
+	}
+
+	// Params 经 JSON 存取后变成 map[string]any，序列化回来再反序列化回结构体
+	paramsBytes, err := json.Marshal(oldTask.Params)
+	if err != nil {
+		writeError(w, 500, "解析任务参数失败")
+		return
+	}
+	var cjReq chanjing.CreateVideoRequest
+	if err := json.Unmarshal(paramsBytes, &cjReq); err != nil {
+		writeError(w, 500, "还原任务参数失败: "+err.Error())
+		return
+	}
+	if cjReq.AudioSource == 0 {
+		audioSource, err := h.voiceAudioSource(cjReq.Audio.TTS.AudioMan)
+		if err != nil {
+			writeError(w, 500, "读取人声配置失败")
+			return
+		}
+		cjReq.AudioSource = audioSource
+	}
+
+	token, err := h.Chanjing.GetToken()
+	if err != nil {
+		writeError(w, 503, "蝉镜认证失败: "+err.Error())
+		return
+	}
+
+	newTaskID, err := h.Chanjing.CreateVideo(token, cjReq)
+	if err != nil {
+		writeError(w, 503, "重试失败: "+err.Error())
+		return
+	}
+
+	newTask := store.Task{
+		TaskID:    newTaskID,
+		Status:    "pending",
+		Script:    oldTask.Script,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		Params:    cjReq,
+	}
+	if newTask.Script == "" && len(cjReq.Audio.TTS.Text) > 0 {
+		newTask.Script = cjReq.Audio.TTS.Text[0]
+	}
+
+	tasks = append(tasks, newTask)
+	if err := store.SaveTasks(h.Store.Tasks, tasks); err != nil {
+		writeError(w, 500, "保存任务列表失败")
+		return
+	}
+
+	h.Scheduler.Add(newTaskID, token)
+
+	writeJSON(w, map[string]string{
+		"task_id": newTaskID,
+		"status":  "pending",
+	})
 }
 
 func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
@@ -202,15 +337,12 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// defaults
+	// defaults — 对齐 n8n 工作流
 	if req.Speed == 0 {
 		req.Speed = 1.0
 	}
 	if req.Volume == 0 {
 		req.Volume = 100
-	}
-	if req.BgColor == "" {
-		req.BgColor = "#ffffff"
 	}
 	if req.FigureType == "" {
 		req.FigureType = "stand_body"
@@ -224,6 +356,15 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	if req.Language == "" {
 		req.Language = "cn"
 	}
+	if req.BgColor == "" {
+		req.BgColor = "#ffffff"
+	}
+
+	audioSource, err := h.voiceAudioSource(req.AudioManID)
+	if err != nil {
+		writeError(w, 500, "读取人声配置失败")
+		return
+	}
 
 	scw, sch := 1080, 1920
 	if req.Resolution == "720P" {
@@ -231,15 +372,18 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cjReq := chanjing.CreateVideoRequest{
-		Person: chanjing.PersonParams{
-			ID: req.AvatarID, X: 0, Y: 0,
-			Width: scw, Height: sch,
+		Person: chanjing.PersonConfig{
+			ID:         req.AvatarID,
+			X:          0,
+			Y:          0,
+			Width:      scw,
+			Height:     sch,
 			FigureType: req.FigureType,
 			DriveMode:  req.DriveMode,
 			Backway:    req.Backway,
 		},
-		Audio: chanjing.AudioParams{
-			TTS: chanjing.TTSParams{
+		Audio: chanjing.AudioConfig{
+			TTS: chanjing.TTSConfig{
 				Text:     []string{req.Script},
 				Speed:    req.Speed,
 				AudioMan: req.AudioManID,
@@ -255,6 +399,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		SubtitleConfig:         chanjing.SubtitleConfig{Show: req.SubtitleEnabled},
 		AddComplianceWatermark: req.ComplianceWatermark,
 		Source:                 1,
+		AudioSource:            audioSource,
 	}
 
 	token, err := h.Chanjing.GetToken()
@@ -272,6 +417,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	newTask := store.Task{
 		TaskID:    taskID,
 		Status:    "pending",
+		Script:    req.Script,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		Params:    cjReq,
 	}
@@ -293,6 +439,22 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		"task_id": taskID,
 		"status":  "pending",
 	})
+}
+
+func (h *Handler) voiceAudioSource(voiceID string) (int, error) {
+	voices, err := store.LoadVoices(h.Store.Voices)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	for _, voice := range voices {
+		if voice.ID == voiceID {
+			return voice.AudioSource, nil
+		}
+	}
+	return 0, nil
 }
 
 // GET /api/settings, PUT /api/settings
@@ -330,10 +492,15 @@ func (h *Handler) handleSettings(w http.ResponseWriter, r *http.Request) {
 				cfg.LLM.APIKey = old.LLM.APIKey
 			}
 		}
+		if strings.TrimSpace(cfg.Chanjing.AppID) == "" || strings.TrimSpace(cfg.Chanjing.SecretKey) == "" {
+			writeError(w, 400, "蝉镜 AppID 和 SecretKey 不能为空")
+			return
+		}
 		if err := store.SaveConfig(h.Store.Config, cfg); err != nil {
 			writeError(w, 500, "保存设置失败")
 			return
 		}
+		h.Chanjing.Configure(cfg.Chanjing.AppID, cfg.Chanjing.SecretKey)
 		writeJSON(w, map[string]string{"status": "ok"})
 
 	default:

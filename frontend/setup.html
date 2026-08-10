@@ -57,20 +57,42 @@
 <script>
 function initSetup() {
   var skillSource = 'local';
+  var saveTimers = {};
 
-  // 加载已有配置并预填
-  API.get('/api/settings').then(function(cfg){
-    if (cfg.chanjing && cfg.chanjing.app_id) {
-      // 有已有配置，说明是从主页进来的，显示返回按钮
+  // 非敏感字段自动保存
+  function autoSave(id, key) {
+    clearTimeout(saveTimers[id]);
+    saveTimers[id] = setTimeout(function() { savePref(key, document.getElementById(id).value); }, 300);
+  }
+  function autoSaveSecure(id, key) {
+    clearTimeout(saveTimers[id]);
+    saveTimers[id] = setTimeout(function() { SecureStore.setItem(key, document.getElementById(id).value); }, 300);
+  }
+
+  // 恢复：本地缓存优先，服务器配置 fallback
+  function restoreField(id, key, serverVal) {
+    document.getElementById(id).value = loadPref(key, '') || serverVal || '';
+  }
+
+  // 加载已有配置并预填；服务端密文失效时仍从浏览器本地缓存恢复。
+  function restoreSettings(cfg) {
+    cfg = cfg || {};
+    var chanjing = cfg.chanjing || {};
+    var llm = cfg.llm || {};
+    var skill = cfg.skill || {};
+
+    restoreField('cjAk', 'setup_cjAk', chanjing.app_id);
+    SecureStore.getItem('setup_cjSk').then(function(v) { if (v) document.getElementById('cjSk').value = v; });
+    restoreField('llmUrl', 'setup_llmUrl', llm.api_url);
+    restoreField('llmModel', 'setup_llmModel', llm.model);
+    SecureStore.getItem('setup_llmKey').then(function(v) { if (v) document.getElementById('llmKey').value = v; });
+
+    if (chanjing.app_id) {
       document.getElementById('btnBackToMain').style.display = '';
-      document.getElementById('cjAk').value = cfg.chanjing.app_id || '';
     }
-    if (cfg.llm) {
-      document.getElementById('llmUrl').value = cfg.llm.api_url || '';
-      document.getElementById('llmModel').value = cfg.llm.model || '';
-    }
-    if (cfg.skill) {
-      if (cfg.skill.source === 'github') {
+
+    if (skill.source) {
+      if (skill.source === 'github') {
         skillSource = 'github';
         var githubEl = document.querySelector('.skill-opt[data-skill="github"]');
         var localEl = document.querySelector('.skill-opt[data-skill="local"]');
@@ -78,21 +100,37 @@ function initSetup() {
         if (githubEl) githubEl.classList.add('on');
         document.getElementById('localSection').style.display = 'none';
         document.getElementById('githubSection').style.display = '';
-        document.getElementById('gitUrl').value = cfg.skill.github_url || '';
+        document.getElementById('gitUrl').value = loadPref('setup_gitUrl', '') || skill.github_url || '';
       } else {
-        document.getElementById('localPathInput').value = cfg.skill.local_path || '';
+        document.getElementById('localPathInput').value = loadPref('setup_localPath', '') || skill.local_path || '';
       }
     }
-  }).catch(function(){});
+  }
+
+  API.get('/api/settings').then(restoreSettings).catch(function(){ restoreSettings({}); });
+
+  // 绑定自动保存
+  ['cjAk','llmUrl','llmModel','localPathInput','gitUrl'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', function(){ autoSave(id, 'setup_'+id); });
+  });
+  var cjSkEl = document.getElementById('cjSk');
+  if (cjSkEl) cjSkEl.addEventListener('input', function(){ autoSaveSecure('cjSk', 'setup_cjSk'); });
+  var llmKeyEl = document.getElementById('llmKey');
+  if (llmKeyEl) llmKeyEl.addEventListener('input', function(){ autoSaveSecure('llmKey', 'setup_llmKey'); });
 
   // 返回主界面
   document.getElementById('btnBackToMain').addEventListener('click', async function(){
     await loadPage('/main.html');
     // 加载 tutorial overlay
     var tut = await fetch('/tutorial.html');
+    var tutHtml = await tut.text();
+    var tutScripts = [];
+    tutHtml = tutHtml.replace(/<script>([\s\S]*?)<\/script>/g, function(_, code) { tutScripts.push(code); return ''; });
     var div = document.createElement('div');
-    div.innerHTML = await tut.text();
+    div.innerHTML = tutHtml;
     document.body.appendChild(div);
+    tutScripts.forEach(function(code) { var el = document.createElement('script'); el.textContent = code; document.body.appendChild(el); });
     if (typeof initMain === 'function') initMain();
   });
 
@@ -132,8 +170,14 @@ function initSetup() {
   });
 
   document.getElementById('btnSaveSetup').addEventListener('click', async function(){
+    var chanjingAppID = document.getElementById('cjAk').value.trim();
+    var chanjingSecretKey = document.getElementById('cjSk').value.trim();
+    if (!chanjingAppID || !chanjingSecretKey) {
+      toast('请填写蝉镜 AppID 和 SecretKey');
+      return;
+    }
     var cfg = {
-      chanjing: { app_id: document.getElementById('cjAk').value, secret_key: document.getElementById('cjSk').value },
+      chanjing: { app_id: chanjingAppID, secret_key: chanjingSecretKey },
       llm: { api_url: document.getElementById('llmUrl').value, api_key: document.getElementById('llmKey').value, model: document.getElementById('llmModel').value },
       skill: { source: skillSource, local_path: document.getElementById('localPathInput').value, github_url: document.getElementById('gitUrl').value, github_cache_until: 0 }
     };
@@ -142,15 +186,21 @@ function initSetup() {
     btn.textContent = '保存中...'; btn.disabled = true;
     try {
       await API.put('/api/settings', cfg);
+      // 首次保存：重置教程标记，确保进入主界面后弹出教程
+      savePref('tutorial_done', false);
       btn.textContent = '✓ 保存成功，进入主界面';
       btn.style.background = '#239559';
       // 直接切换到主界面，不刷新整个页面
       setTimeout(async function(){
         await loadPage('/main.html');
         var tut = await fetch('/tutorial.html');
+        var tutHtml = await tut.text();
+        var tutScripts = [];
+        tutHtml = tutHtml.replace(/<script>([\s\S]*?)<\/script>/g, function(_, code) { tutScripts.push(code); return ''; });
         var div = document.createElement('div');
-        div.innerHTML = await tut.text();
+        div.innerHTML = tutHtml;
         document.body.appendChild(div);
+        tutScripts.forEach(function(code) { var el = document.createElement('script'); el.textContent = code; document.body.appendChild(el); });
         if (typeof initMain === 'function') initMain();
       }, 500);
     } catch(e) {

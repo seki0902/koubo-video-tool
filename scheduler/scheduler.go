@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ type pendingJob struct {
 }
 
 type Scheduler struct {
-	client   *chanjing.Client
+	client   chanjing.ClientInterface
 	onUpdate func(store.Task)
 	mu       sync.Mutex
 	jobs     map[string]*pendingJob
@@ -30,7 +31,7 @@ type Scheduler struct {
 	once     sync.Once
 }
 
-func New(client *chanjing.Client, onUpdate func(store.Task)) *Scheduler {
+func New(client chanjing.ClientInterface, onUpdate func(store.Task)) *Scheduler {
 	return &Scheduler{
 		client:   client,
 		onUpdate: onUpdate,
@@ -64,6 +65,67 @@ func (s *Scheduler) Restore(tasks []store.Task) {
 			go s.poll(t.TaskID)
 		}
 	}
+}
+
+func (s *Scheduler) Refresh(taskID string) (store.Task, error) {
+	if s == nil || s.client == nil {
+		return store.Task{}, fmt.Errorf("scheduler unavailable")
+	}
+
+	token, err := s.client.GetToken()
+	if err != nil {
+		return store.Task{}, err
+	}
+
+	status, err := s.client.GetVideoStatus(token, taskID)
+	if err != nil && isAccessTokenExpired(err) {
+		s.client.InvalidateTokenCache()
+		token, err = s.client.GetToken()
+		if err == nil {
+			status, err = s.client.GetVideoStatus(token, taskID)
+		}
+	}
+	if err != nil {
+		return store.Task{}, err
+	}
+
+	task := store.Task{
+		TaskID:   taskID,
+		Progress: status.Progress,
+		VideoURL: status.VideoURL,
+		Error:    status.Msg,
+	}
+
+	switch {
+	case status.Status == 30 || status.QueueStatus == "completed":
+		s.mu.Lock()
+		delete(s.jobs, taskID)
+		s.mu.Unlock()
+		task.Status = "done"
+		task.Progress = 100
+		task.Error = ""
+		task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	case status.Status >= 40 || status.QueueStatus == "failed":
+		s.mu.Lock()
+		delete(s.jobs, taskID)
+		s.mu.Unlock()
+		task.Status = "failed"
+		if task.Error == "" {
+			task.Error = status.QueueDesc
+		}
+		task.VideoURL = ""
+		task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	default:
+		task.Status = "generating"
+		task.VideoURL = ""
+		task.Error = ""
+	}
+
+	if s.onUpdate != nil {
+		s.onUpdate(task)
+	}
+
+	return task, nil
 }
 
 func (s *Scheduler) Stop() {
@@ -114,6 +176,19 @@ func (s *Scheduler) poll(taskID string) {
 		s.mu.Unlock()
 
 		status, err := s.client.GetVideoStatus(token, taskID)
+		if err != nil && isAccessTokenExpired(err) {
+			s.client.InvalidateTokenCache()
+			s.mu.Lock()
+			if job, ok := s.jobs[taskID]; ok {
+				job.token = ""
+			}
+			s.mu.Unlock()
+
+			token, err = s.client.GetToken()
+			if err == nil {
+				status, err = s.client.GetVideoStatus(token, taskID)
+			}
+		}
 		if err != nil {
 			s.mu.Lock()
 			delete(s.jobs, taskID)
@@ -122,18 +197,22 @@ func (s *Scheduler) poll(taskID string) {
 			return
 		}
 
-		switch status.Status {
-		case 20:
+		switch {
+		case status.Status == 30 || status.QueueStatus == "completed":
 			s.mu.Lock()
 			delete(s.jobs, taskID)
 			s.mu.Unlock()
 			s.update(taskID, "done", 100, status.VideoURL, "")
 			return
-		case 30:
+		case status.Status >= 40 || status.QueueStatus == "failed":
 			s.mu.Lock()
 			delete(s.jobs, taskID)
 			s.mu.Unlock()
-			s.update(taskID, "failed", status.Progress, "", status.Msg)
+			errMsg := status.Msg
+			if errMsg == "" {
+				errMsg = status.QueueDesc
+			}
+			s.update(taskID, "failed", status.Progress, "", errMsg)
 			return
 		default:
 			s.mu.Lock()
@@ -145,6 +224,14 @@ func (s *Scheduler) poll(taskID string) {
 
 		time.Sleep(interval)
 	}
+}
+
+func isAccessTokenExpired(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "AccessToken已失效") || strings.Contains(msg, "AccessTokenå·²å¤±æ") || strings.Contains(msg, "10400")
 }
 
 func nextInterval(pollCount int) time.Duration {
@@ -160,12 +247,14 @@ func nextInterval(pollCount int) time.Duration {
 
 func (s *Scheduler) update(taskID, status string, progress int, videoURL, errMsg string) {
 	task := store.Task{
-		TaskID:      taskID,
-		Status:      status,
-		Progress:    progress,
-		VideoURL:    videoURL,
-		Error:       errMsg,
-		CompletedAt: time.Now().UTC().Format(time.RFC3339),
+		TaskID:   taskID,
+		Status:   status,
+		Progress: progress,
+		VideoURL: videoURL,
+		Error:    errMsg,
+	}
+	if status == "done" || status == "failed" || status == "timeout" {
+		task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	if s.onUpdate != nil {
 		s.onUpdate(task)

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestSaveAndLoadConfig(t *testing.T) {
@@ -70,6 +71,55 @@ func TestLoadTasks_FileNotExist(t *testing.T) {
 	}
 }
 
+func TestTaskHistoryRetentionAndDeletion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tasks.json")
+	tasks := []Task{
+		{TaskID: "old-done", Status: "done", CreatedAt: "2026-06-01T00:00:00Z"},
+		{TaskID: "recent-done", Status: "done", CreatedAt: "2026-08-01T00:00:00Z"},
+		{TaskID: "old-active", Status: "generating", CreatedAt: "2026-06-01T00:00:00Z"},
+	}
+	if err := SaveTasks(path, tasks); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := PruneExpiredTasks(path, time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC))
+	if err != nil || removed != 1 {
+		t.Fatalf("PruneExpiredTasks removed=%d err=%v", removed, err)
+	}
+	if err := DeleteTask(path, "old-active"); err != ErrTaskInProgress {
+		t.Fatalf("active delete err=%v, want %v", err, ErrTaskInProgress)
+	}
+	if err := DeleteTask(path, "recent-done"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadTasks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].TaskID != "old-active" {
+		t.Fatalf("remaining tasks=%+v", got)
+	}
+}
+
+func TestClearTerminalTasksKeepsActiveTasks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tasks.json")
+	if err := SaveTasks(path, []Task{{TaskID: "done", Status: "done"}, {TaskID: "failed", Status: "failed"}, {TaskID: "active", Status: "pending"}}); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := ClearTerminalTasks(path)
+	if err != nil || removed != 2 {
+		t.Fatalf("ClearTerminalTasks removed=%d err=%v", removed, err)
+	}
+	got, err := LoadTasks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].TaskID != "active" {
+		t.Fatalf("remaining tasks=%+v", got)
+	}
+}
+
 func TestLoadAvatarsAndVoices(t *testing.T) {
 	dir := t.TempDir()
 
@@ -121,5 +171,17 @@ func TestConfig_RoundTrip(t *testing.T) {
 
 	if _, err := os.Stat(p); os.IsNotExist(err) {
 		t.Error("config.json not written to disk")
+	}
+}
+
+func TestLoadConfig_InvalidEncryptedSecret(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	data := []byte(`{"chanjing":{"app_id":"test","secret_key":"ENC:not-valid"}}`)
+	if err := os.WriteFile(p, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := LoadConfig(p); err == nil {
+		t.Fatal("LoadConfig should report an invalid encrypted SecretKey")
 	}
 }

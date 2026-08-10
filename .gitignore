@@ -1,6 +1,11 @@
 koubo-video-tool.exe
 koubo-video-tool.exe~
-data/config.json
-data/tasks.json
-data/avatars.json
-data/voices.json
+koubo-tool.exe
+koubo-tool.exe~
+data/
+.idea/
+.playwright-cli/
+release-koubo-video-tool/
+server.log
+*.log
+chanjing/voice id/

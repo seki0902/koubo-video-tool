@@ -6,9 +6,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
+
+// ClientInterface 定义蝉镜视频操作接口，便于测试时 mock
+type ClientInterface interface {
+	GetToken() (string, error)
+	CreateVideo(token string, req CreateVideoRequest) (string, error)
+	GetVideoStatus(token, taskID string) (VideoStatus, error)
+	Configure(appID, secretKey string)
+	InvalidateTokenCache()
+}
 
 const BaseURL = "https://open-api.chanjing.cc/open/v1"
 
@@ -33,6 +43,23 @@ func NewClient(appID, secretKey string) *Client {
 	}
 }
 
+func (c *Client) Configure(appID, secretKey string) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+	c.AppID = appID
+	c.SecretKey = secretKey
+	c.tokenCache = ""
+	c.tokenExpiry = time.Time{}
+}
+
+// InvalidateTokenCache 清空本地 token 缓存，便于轮询时强制重新取 token。
+func (c *Client) InvalidateTokenCache() {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+	c.tokenCache = ""
+	c.tokenExpiry = time.Time{}
+}
+
 // --- Token ---
 
 type tokenResp struct {
@@ -49,11 +76,15 @@ func (c *Client) GetToken() (string, error) {
 		c.tokenMu.Unlock()
 		return tok, nil
 	}
+	appID, secretKey := c.AppID, c.SecretKey
 	c.tokenMu.Unlock()
+	if strings.TrimSpace(appID) == "" || strings.TrimSpace(secretKey) == "" {
+		return "", fmt.Errorf("蝉镜 AppID 或 SecretKey 未配置")
+	}
 
 	body := map[string]string{
-		"app_id":     c.AppID,
-		"secret_key": c.SecretKey,
+		"app_id":     appID,
+		"secret_key": secretKey,
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -66,12 +97,13 @@ func (c *Client) GetToken() (string, error) {
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(resp.Body)
 	var tr tokenResp
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
-		return "", fmt.Errorf("get token decode: %w", err)
+	if err := json.Unmarshal(respBody, &tr); err != nil {
+		return "", fmt.Errorf("get token decode: %w (body=%s)", err, string(respBody))
 	}
 	if tr.Code != 0 {
-		return "", fmt.Errorf("get token failed: code=%d", tr.Code)
+		return "", fmt.Errorf("get token failed: code=%d, body=%s", tr.Code, string(respBody))
 	}
 
 	c.tokenMu.Lock()
@@ -83,8 +115,10 @@ func (c *Client) GetToken() (string, error) {
 }
 
 // --- Create Video ---
+// 端点: POST /open/v1/create_video
+// 结构与 n8n 工作流已验证的格式保持一致
 
-type PersonParams struct {
+type PersonConfig struct {
 	ID         string `json:"id"`
 	X          int    `json:"x"`
 	Y          int    `json:"y"`
@@ -95,14 +129,14 @@ type PersonParams struct {
 	Backway    int    `json:"backway"`
 }
 
-type TTSParams struct {
+type TTSConfig struct {
 	Text     []string `json:"text"`
 	Speed    float64  `json:"speed"`
 	AudioMan string   `json:"audio_man"`
 }
 
-type AudioParams struct {
-	TTS      TTSParams `json:"tts"`
+type AudioConfig struct {
+	TTS      TTSConfig `json:"tts"`
 	WavURL   string    `json:"wav_url"`
 	Type     string    `json:"type"`
 	Volume   int       `json:"volume"`
@@ -114,20 +148,21 @@ type SubtitleConfig struct {
 }
 
 type CreateVideoRequest struct {
-	Person                 PersonParams   `json:"person"`
-	Audio                  AudioParams    `json:"audio"`
+	Person                 PersonConfig   `json:"person"`
+	Audio                  AudioConfig    `json:"audio"`
 	BgColor                string         `json:"bg_color"`
 	ScreenWidth            int            `json:"screen_width"`
 	ScreenHeight           int            `json:"screen_height"`
 	SubtitleConfig         SubtitleConfig `json:"subtitle_config"`
 	AddComplianceWatermark bool           `json:"add_compliance_watermark"`
 	Source                 int            `json:"source"`
+	AudioSource            int            `json:"audio_source,omitempty"`
 }
 
 type createVideoResp struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
-	Data string `json:"data"`
+	Data string `json:"data"` // 返回视频任务 ID
 }
 
 func (c *Client) CreateVideo(token string, req CreateVideoRequest) (string, error) {
@@ -135,6 +170,10 @@ func (c *Client) CreateVideo(token string, req CreateVideoRequest) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("create video marshal: %w", err)
 	}
+
+	fmt.Printf("[DEBUG] === 蝉镜 CreateVideo 请求 ===\n")
+	fmt.Printf("[DEBUG] URL: %s\n", BaseURL+"/create_video")
+	fmt.Printf("[DEBUG] Body: %s\n", string(b))
 
 	httpReq, err := http.NewRequest("POST", BaseURL+"/create_video", bytes.NewReader(b))
 	if err != nil {
@@ -150,28 +189,37 @@ func (c *Client) CreateVideo(token string, req CreateVideoRequest) (string, erro
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("[DEBUG] HTTP %d\n", resp.StatusCode)
+	fmt.Printf("[DEBUG] Response: %s\n", string(body))
+
 	var cr createVideoResp
 	if err := json.Unmarshal(body, &cr); err != nil {
 		return "", fmt.Errorf("create video decode: %w (body=%s)", err, string(body))
 	}
 	if cr.Code != 0 {
-		return "", fmt.Errorf("create video failed: code=%d, msg=%s", cr.Code, cr.Msg)
+		return "", fmt.Errorf("create video failed: code=%d, msg=%s, body=%s", cr.Code, cr.Msg, string(body))
 	}
 	return cr.Data, nil
 }
 
 // --- Get Video Status ---
+// 端点: GET /open/v1/video?id={taskID}
+// 结构与 n8n 工作流已验证的格式保持一致
 
 type VideoStatus struct {
-	Status   int    `json:"status"` // 0=排队 10=生成中 20=成功 30=失败
-	Progress int    `json:"progress"`
-	VideoURL string `json:"video_url"`
-	Msg      string `json:"msg"`
-	Duration int    `json:"duration"`
+	Status      int    `json:"status"` // 10=生成中，30=成功，4X=参数异常，5X=服务异常
+	Progress    int    `json:"progress"`
+	VideoURL    string `json:"video_url"`
+	Msg         string `json:"msg"`
+	Duration    int    `json:"duration"`
+	ID          string `json:"id"`
+	QueueStatus string `json:"queue_status"`
+	QueueDesc   string `json:"queue_desc"`
 }
 
 type videoStatusResp struct {
 	Code int         `json:"code"`
+	Msg  string      `json:"msg"`
 	Data VideoStatus `json:"data"`
 }
 
@@ -186,12 +234,13 @@ func (c *Client) GetVideoStatus(token, taskID string) (VideoStatus, error) {
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
 	var vs videoStatusResp
-	if err := json.NewDecoder(resp.Body).Decode(&vs); err != nil {
-		return VideoStatus{}, fmt.Errorf("get video status decode: %w", err)
+	if err := json.Unmarshal(body, &vs); err != nil {
+		return VideoStatus{}, fmt.Errorf("get video status decode: %w (body=%s)", err, string(body))
 	}
 	if vs.Code != 0 {
-		return VideoStatus{}, fmt.Errorf("get video status failed: code=%d", vs.Code)
+		return VideoStatus{}, fmt.Errorf("get video status failed: code=%d, msg=%s, body=%s", vs.Code, vs.Msg, string(body))
 	}
 	return vs.Data, nil
 }

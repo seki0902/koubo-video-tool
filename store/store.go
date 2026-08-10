@@ -2,8 +2,11 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"koubo-video-tool/crypto"
 )
@@ -34,6 +37,7 @@ type Task struct {
 	Progress    int    `json:"progress"`
 	VideoURL    string `json:"video_url"`
 	Error       string `json:"error"`
+	Script      string `json:"script,omitempty"`
 	Params      any    `json:"params"`
 	CreatedAt   string `json:"created_at"`
 	CompletedAt string `json:"completed_at"`
@@ -54,12 +58,18 @@ type Voice struct {
 	Gender          string `json:"gender"`
 	Description     string `json:"description"`
 	PreviewAudioURL string `json:"preview_audio_url"`
+	AudioSource     int    `json:"audio_source,omitempty"`
 }
 
 // MaskedValue 用于前端传输时隐藏密钥的真实值
 const MaskedValue = "\x00masked\x00"
 
 var mu sync.RWMutex
+
+var (
+	ErrTaskNotFound   = errors.New("任务不存在")
+	ErrTaskInProgress = errors.New("生成中的任务不能删除")
+)
 
 func read(path string, v any) error {
 	mu.RLock()
@@ -91,12 +101,17 @@ func LoadConfig(path string) (Config, error) {
 		return c, err
 	}
 	// 解密敏感字段（旧明文无 "ENC:" 前缀则直接返回，下次保存自动加密）
-	if key, err := crypto.Decrypt(c.Chanjing.SecretKey); err == nil {
-		c.Chanjing.SecretKey = key
+	key, err := crypto.Decrypt(c.Chanjing.SecretKey)
+	if err != nil {
+		return Config{}, fmt.Errorf("解密蝉镜 SecretKey 失败: %w", err)
 	}
-	if key, err := crypto.Decrypt(c.LLM.APIKey); err == nil {
-		c.LLM.APIKey = key
+	c.Chanjing.SecretKey = key
+
+	key, err = crypto.Decrypt(c.LLM.APIKey)
+	if err != nil {
+		return Config{}, fmt.Errorf("解密 LLM API Key 失败: %w", err)
 	}
+	c.LLM.APIKey = key
 	return c, nil
 }
 
@@ -124,6 +139,110 @@ func LoadTasks(path string) ([]Task, error) {
 
 func SaveTasks(path string, tasks []Task) error {
 	return write(path, tasks)
+}
+
+// PruneExpiredTasks removes terminal records older than cutoff and keeps active jobs.
+func PruneExpiredTasks(path string, cutoff time.Time) (int, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	tasks, err := loadTasksUnlocked(path)
+	if err != nil {
+		return 0, err
+	}
+	kept := make([]Task, 0, len(tasks))
+	removed := 0
+	for _, task := range tasks {
+		createdAt, parseErr := time.Parse(time.RFC3339, task.CreatedAt)
+		if isActiveTask(task) || parseErr != nil || !createdAt.Before(cutoff) {
+			kept = append(kept, task)
+			continue
+		}
+		removed++
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	return removed, saveTasksUnlocked(path, kept)
+}
+
+func DeleteTask(path, taskID string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	tasks, err := loadTasksUnlocked(path)
+	if err != nil {
+		return err
+	}
+	kept := make([]Task, 0, len(tasks))
+	found := false
+	for _, task := range tasks {
+		if task.TaskID != taskID {
+			kept = append(kept, task)
+			continue
+		}
+		found = true
+		if isActiveTask(task) {
+			return ErrTaskInProgress
+		}
+	}
+	if !found {
+		return ErrTaskNotFound
+	}
+	return saveTasksUnlocked(path, kept)
+}
+
+// ClearTerminalTasks clears history without hiding tasks that are still running.
+func ClearTerminalTasks(path string) (int, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	tasks, err := loadTasksUnlocked(path)
+	if err != nil {
+		return 0, err
+	}
+	kept := make([]Task, 0, len(tasks))
+	for _, task := range tasks {
+		if isActiveTask(task) {
+			kept = append(kept, task)
+		}
+	}
+	removed := len(tasks) - len(kept)
+	if removed == 0 {
+		return 0, nil
+	}
+	return removed, saveTasksUnlocked(path, kept)
+}
+
+func isActiveTask(task Task) bool {
+	return task.Status == "pending" || task.Status == "generating"
+}
+
+func loadTasksUnlocked(path string) ([]Task, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Task{}, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+	var tasks []Task
+	if err := json.NewDecoder(f).Decode(&tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+func saveTasksUnlocked(path string, tasks []Task) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(tasks)
 }
 
 // UpdateTask 原子地读取、修改、写回单个任务，避免并发覆盖
