@@ -130,6 +130,38 @@ func TestScheduler_Status4xFails(t *testing.T) {
 	}
 }
 
+func TestScheduler_EmptyFailureIsRetriedUntilCompleted(t *testing.T) {
+	updates := make(chan store.Task, 3)
+	mock := &mockClient{
+		token: "test-token",
+		statuses: []chanjing.VideoStatus{
+			{Status: 50, Progress: 100},
+			{Status: 30, Progress: 100, VideoURL: "https://res.chanjing.cc/recovered.mp4"},
+		},
+	}
+	sch := New(mock, func(task store.Task) { updates <- task })
+	defer sch.Stop()
+
+	sch.Add("task-transient-failure", "test-token")
+	select {
+	case task := <-updates:
+		if task.Status != "generating" || task.Progress != 100 {
+			t.Fatalf("empty failure should remain generating: %+v", task)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for transient update")
+	}
+
+	select {
+	case task := <-updates:
+		if task.Status != "done" || task.VideoURL != "https://res.chanjing.cc/recovered.mp4" {
+			t.Fatalf("unexpected recovered task: %+v", task)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for recovered task")
+	}
+}
+
 func TestScheduler_GeneratingDoesNotSetCompletedAt(t *testing.T) {
 	var received store.Task
 	sch := New(&mockClient{}, func(task store.Task) { received = task })

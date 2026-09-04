@@ -209,6 +209,7 @@ func initDataFiles(dir string) {
 	files := map[string]string{
 		"config.json":  "{}",
 		"tasks.json":   "[]",
+		"topics.json":  "[]",
 		"avatars.json": "[]",
 		"voices.json":  "[]",
 	}

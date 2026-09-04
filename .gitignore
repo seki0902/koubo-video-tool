@@ -9,3 +9,8 @@ release-koubo-video-tool/
 server.log
 *.log
 chanjing/voice id/
+artifacts/
+experiments/**/__pycache__/
+*.exe
+*.exe~
+!koubo-video-tool-2.0.exe

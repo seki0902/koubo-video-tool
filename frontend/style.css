@@ -81,3 +81,39 @@ input:focus, select:focus { border-color: #5958d9; box-shadow: 0 0 0 3px rgba(89
 .tutorial-card p { font-size:13px;color:#86868b;line-height:1.6;margin-bottom:22px; }
 .tutorial-card .tut-btns { display:flex;gap:8px;justify-content:space-between;align-items:center; }
 .tutorial-card .skip { font-size:12px;color:#86868b;cursor:pointer; }
+.topic-search { padding:18px; border:1px solid #e5e5e7; border-radius:14px; background:linear-gradient(135deg,#fbfbff,#fff); }
+.topic-search-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.topic-search-title { font-size:16px; font-weight:650; color:#24233a; }
+.topic-search-sub { margin-top:3px; font-size:11px; color:#86868b; }
+.topic-search-status { max-width:190px; text-align:right; font-size:11px; color:#86868b; line-height:1.5; }
+.topic-search-status.loading { color:#b4760e; }
+.topic-search-status.error { color:#cf3a3a; }
+.topic-search-bar { display:flex; gap:10px; }
+.topic-search-bar input { min-width:0; background:#fff; font-size:14px; padding:12px 14px; }
+.topic-search-bar button { white-space:nowrap; padding-left:22px; padding-right:22px; }
+.topic-search-shortcuts, .topic-recent { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:12px; font-size:11px; color:#86868b; }
+.topic-chip, .topic-recent-item { border:1px solid #dedee5; border-radius:999px; background:#fff; color:#5c5b74; cursor:pointer; padding:5px 10px; font:inherit; }
+.topic-chip:hover, .topic-recent-item:hover { border-color:#5958d9; color:#5958d9; }
+.topic-results { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+.topic-library { margin-top:16px; padding:18px; border:1px solid #e5e5e7; border-radius:14px; background:#fff; }
+.topic-library-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.topic-library-count { margin-left:5px; font-size:11px; color:#86868b; font-weight:400; }
+.topic-library-list { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+.topic-library-card { padding:12px 14px; border:1px solid #eeeef1; border-radius:10px; background:#fbfbfd; }
+.topic-library-card h3 { margin-top:7px; font-size:13px; line-height:1.5; color:#1d1d1f; }
+.topic-card { padding:15px; border:1px solid #e5e5e7; border-radius:12px; background:#fff; }
+.topic-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.topic-type { padding:3px 8px; border-radius:999px; background:#f2f1fd; color:#5958d9; font-size:10px; }
+.topic-source-type { color:#9a9aa1; font-size:10px; }
+.topic-card h3 { margin-top:9px; font-size:14px; line-height:1.5; color:#1d1d1f; }
+.topic-org { margin-top:2px; color:#6b7280; font-size:11px; }
+.topic-fields { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.topic-field { display:flex; gap:8px; font-size:11px; line-height:1.5; }
+.topic-field span { width:58px; flex-shrink:0; color:#86868b; }
+.topic-field strong { color:#3a3a3c; font-weight:450; word-break:break-word; }
+.topic-card-actions { display:flex; gap:8px; margin-top:13px; padding-top:11px; border-top:1px solid #f0f0f2; }
+.topic-card-actions .topic-link, .topic-card-actions .topic-save, .topic-card-actions .topic-generate-script, .topic-card-actions .topic-library-generate { padding:6px 11px; font-size:11px; text-decoration:none; }
+.topic-save.saved { color:#239559; border-color:#b4dfc5; background:#f4fbf6; }
+.topic-empty { padding:18px 8px; color:#86868b; text-align:center; font-size:12px; }
+.topic-loading { color:#b4760e; }
+@media (max-width: 560px) { .topic-search-head { flex-direction:column; } .topic-search-status { max-width:none; text-align:left; } }

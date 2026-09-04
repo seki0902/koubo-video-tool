@@ -2,6 +2,44 @@
   <div class="page-title">&#20027;&#30028;&#38754; <span style="font-size:11px;color:#86868b;font-weight:400;cursor:pointer;margin-left:8px;" id="btnReTutorial">&#128214; &#20351;&#29992;&#25945;&#31243;</span><span style="font-size:14px;cursor:pointer;float:right;" id="btnSettings" title="&#35774;&#32622;">&#9881;&#65039; &#35774;&#32622;</span></div>
   <div class="page-sub">&#36755;&#20837;&#35805;&#39064; &rarr; AI &#29983;&#25104;&#21475;&#25773;&#31295; &rarr; &#37197;&#32622;&#21442;&#25968; &rarr; &#29983;&#25104;&#35270;&#39057;</div>
 
+  <!-- AI topic search -->
+  <section class="topic-search" id="topicSearchSection">
+    <div class="topic-search-head">
+      <div>
+        <div class="topic-search-title">AI 选题搜索</div>
+        <div class="topic-search-sub">帮你把符合条件的招聘信息找出来并整理好</div>
+      </div>
+      <span class="topic-search-status" id="topicSearchStatus">输入你想查找的招聘选题</span>
+    </div>
+    <div class="topic-search-bar">
+      <input type="text" id="topicSearchInput" placeholder="搜索招聘会、校招、央国企、外企、人才引进……" autocomplete="off">
+      <button class="btn-p" id="btnTopicSearch">搜索</button>
+    </div>
+    <div class="topic-search-shortcuts">
+      <span>快捷搜索：</span>
+      <button class="topic-chip" data-topic-query="招聘会">招聘会</button>
+      <button class="topic-chip" data-topic-query="央国企">央国企</button>
+      <button class="topic-chip" data-topic-query="外企">外企</button>
+      <button class="topic-chip" data-topic-query="人才引进">人才引进</button>
+      <button class="topic-chip" data-topic-query="27届">27届</button>
+    </div>
+    <div class="topic-recent" id="topicRecent"></div>
+    <div class="topic-results" id="topicResults" aria-live="polite"></div>
+  </section>
+
+  <section class="topic-library" id="topicLibrarySection">
+    <div class="topic-library-head">
+      <div>
+        <div class="topic-search-title">我的选题库 <span class="topic-library-count" id="topicLibraryCount">0 条</span></div>
+        <div class="topic-search-sub">保存后的招聘选题会出现在这里，可直接生成口播稿</div>
+      </div>
+      <button class="btn-s" id="btnRefreshTopics" style="font-size:11px;padding:6px 10px;">刷新选题库</button>
+    </div>
+    <div class="topic-library-list" id="topicLibraryList" aria-live="polite"><div class="topic-empty">正在加载选题库……</div></div>
+  </section>
+
+  <hr class="sep">
+
   <!-- script area -->
   <div style="margin-bottom:22px;">
     <div class="field-label">&#31295;&#20214;</div>
@@ -11,7 +49,7 @@
     </div>
     <div class="script-box readonly" id="scriptBox">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span style="font-size:11px;color:#86868b;">DeepSeek &#36755;&#20986;</span>
+        <span style="font-size:11px;color:#86868b;" id="llmOutputLabel">AI &#36755;&#20986;</span>
         <button class="btn-s" id="btnEdit" style="font-size:11px;padding:6px 16px;">&#9998; &#32534;&#36753;</button>
         <div class="editor-overlay" id="editActions">
           <button class="btn-s" id="btnSave" style="color:#239559;border-color:#239559;padding:6px 14px;font-size:12px;">&#10003; &#20445;&#23384;</button>
@@ -34,7 +72,7 @@
     <div class="field-label">&#35270;&#39057;&#21442;&#25968;</div>
 
     <div class="field" style="margin-bottom:0;">
-      <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">&#25968;&#23383;&#20154;&#24418;&#35937;</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><span style="font-size:12px;color:#6b7280;">&#25968;&#23383;&#20154;&#24418;&#35937;</span><button class="btn-s" id="btnRefreshAvatars" style="font-size:10px;padding:4px 8px;">&#21516;&#27493;&#34633;&#38236;</button></div>
       <div class="avatar-scroll">
         <button class="arr" id="avatarPrev">&lt;</button>
         <div class="avatar-list" id="avatarList"></div>
@@ -149,6 +187,35 @@ function renderVoiceCard(v, on) {
   return '<div class="voice-card'+(on?' on':'')+'" data-id="'+v.id+'"><div class="wave">'+bars+'</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+v.name+'</div><div style="font-size:10px;color:#86868b;">'+(v.gender||'')+' | '+(v.description||'')+'</div></div><span class="link" style="font-size:11px;" data-action="preview-voice">试听</span></div>';
 }
 
+async function loadAvatars(btn) {
+  var orig = btn ? btn.textContent : '';
+  if (btn) {
+    btn.textContent = '同步中';
+    btn.style.pointerEvents = 'none';
+  }
+  try {
+    var avatars = await API.get('/api/avatars');
+    if (avatars.length === 0) {
+      document.getElementById('avatarList').innerHTML = '<div class="a-card"><div class="img">👤</div><div class="name">请先在蝉镜配置</div></div>';
+      selectedAvatar = '';
+    } else {
+      var savedAvatar = loadPref('avatar_id', avatars[0].id);
+      selectedAvatar = avatars.some(function(a) { return a.id === savedAvatar; }) ? savedAvatar : avatars[0].id;
+      savePref('avatar_id', selectedAvatar);
+      document.getElementById('avatarList').innerHTML = avatars.map(function(a) { return renderAvatarCard(a, a.id === selectedAvatar); }).join('');
+    }
+    radioGroup('.a-card', document.getElementById('avatarList'));
+    document.querySelectorAll('.a-card').forEach(function(c) { c.addEventListener('click', function() { selectedAvatar = this.dataset.id; savePref('avatar_id', selectedAvatar); }); });
+    if (btn) toast('数字人列表已同步');
+  } catch (e) {
+    if (btn) toast('同步失败: ' + e.message);
+  }
+  if (btn) {
+    btn.textContent = orig;
+    btn.style.pointerEvents = '';
+  }
+}
+
 function isTaskActive(t) {
   return t && (t.status === 'pending' || t.status === 'generating');
 }
@@ -189,6 +256,30 @@ async function refreshTaskRemote(taskID, btn) {
   }
 }
 
+async function retryTaskRemote(taskID, btn) {
+  var orig = btn ? btn.textContent : '';
+  if (btn) {
+    btn.textContent = '提交中';
+    btn.style.pointerEvents = 'none';
+  }
+  try {
+    var result = await API.post('/api/tasks/' + taskID + '/retry');
+    toast('已重新提交任务 ' + (result.task_id || ''));
+    await refreshTasks();
+  } catch (e) {
+    var message = e && e.message ? e.message : '重试失败';
+    try {
+      var detail = JSON.parse(message);
+      if (detail.error) message = detail.error;
+    } catch (_) {}
+    toast(message);
+  }
+  if (btn) {
+    btn.textContent = orig;
+    btn.style.pointerEvents = '';
+  }
+}
+
 function renderTask(t) {
   var progress = clampProgress(t.progress);
   var icon = t.status === 'done' ? '&#10003;' : t.status === 'failed' || t.status === 'timeout' ? '&#10007;' : '&#9679;';
@@ -197,12 +288,13 @@ function renderTask(t) {
   var taskScript = t.script || (t.params && t.params.audio && t.params.audio.tts && t.params.audio.tts.text && t.params.audio.tts.text[0]) || '';
   var scriptBtn = taskScript ? '<span class="link" data-action="script" data-script="'+encodeURIComponent(taskScript)+'">&#31295;&#20214;</span>' : '';
   var linkBtn = t.video_url ? '<span class="link" data-action="link" data-url="'+encodeURIComponent(t.video_url)+'">&#38142;&#25509;</span>' : '';
+  var retryBtn = '<span class="link" data-action="retry" data-id="'+t.task_id+'">&#37325;&#35797;</span>';
   var deleteBtn = '<span class="link" data-action="delete" data-id="'+t.task_id+'" title="&#21024;&#38500;&#35760;&#24405;" style="margin-left:auto;font-size:16px;line-height:1;">&#128465;</span>';
   var statusView = '<div class="bar-out"><div class="bar-fill" style="width:'+progress+'%;"></div></div><span class="badge '+badgeCls+'">'+badgeText+'</span>';
   var actions = t.status === 'done'
     ? scriptBtn + linkBtn + deleteBtn
     : t.status === 'failed' || t.status === 'timeout'
-    ? scriptBtn + linkBtn + deleteBtn
+    ? scriptBtn + linkBtn + retryBtn + deleteBtn
     : scriptBtn + statusView + deleteBtn;
   return '<div class="task-wrap"><div class="task-row">'+icon+'<div style="flex:1;"><div style="font-size:12px;font-weight:500;">'+t.task_id+'</div><div style="font-size:10px;color:#86868b;">'+t.created_at+'</div></div><div style="display:flex;align-items:center;gap:10px;margin-left:10px;">'+actions+'</div></div></div>';
 }
@@ -286,6 +378,245 @@ function bindTaskActions() {
           toast('Delete failed: ' + err.message);
         });
       }
+      if (a === 'retry') {
+        retryTaskRemote(this.dataset.id, this);
+      }
+    });
+  });
+}
+
+var topicResultCache = {};
+var topicLibraryCache = {};
+
+function topicEscape(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
+function topicText(value) {
+  if (Array.isArray(value)) return value.filter(function(v) { return String(v || '').trim(); }).join('、');
+  return String(value || '').trim();
+}
+
+function topicField(label, value) {
+  var text = topicText(value);
+  return text ? '<div class="topic-field"><span>'+topicEscape(label)+'</span><strong>'+topicEscape(text)+'</strong></div>' : '';
+}
+
+function topicTypeLabel(type) {
+  return type === 'recruitment_event' ? '招聘会' : type === 'talent_program' ? '人才引进' : type === 'campus_recruitment' ? '企业校招' : '招聘信息';
+}
+
+function topicHref(value) {
+  var text = String(value || '').trim();
+  return /^https?:\/\//i.test(text) ? topicEscape(text) : '#';
+}
+
+function renderTopicCard(item) {
+  var id = item.id || ('topic_' + Math.random().toString(36).slice(2));
+  item.id = id;
+  topicResultCache[id] = item;
+  var companies = Array.isArray(item.companies) ? item.companies : [];
+  var companyText = companies.slice(0, 4).join('、') + (companies.length > 4 ? '等 '+companies.length+' 家企业' : '');
+  var fields = '';
+  if (item.type === 'recruitment_event') {
+    fields += topicField('报名时间', item.application_period || item.deadline) + topicField('活动时间', item.time) + topicField('地点', item.location) + topicField('招聘对象', item.target_audience) + topicField('参加企业', companyText);
+  } else if (item.type === 'talent_program') {
+    fields += topicField('报名时间', item.application_period || item.deadline) + topicField('项目时间', item.time) + topicField('地区', item.region) + topicField('招聘对象', item.target_audience) + topicField('学历要求', item.education_requirement) + topicField('院校要求', item.school_requirement) + topicField('岗位数量', item.position_count || item.positions) + topicField('待遇 / 编制', item.benefits);
+  } else {
+    fields += topicField('申请时间', item.application_period || item.deadline) + topicField('项目时间', item.time) + topicField('招聘对象', item.target_audience) + topicField('招聘岗位', item.positions) + topicField('工作地点', item.location);
+  }
+  fields += topicField('关键信息', item.key_info);
+  var orgHTML = item.organization ? '<div class="topic-org">'+topicEscape(item.organization)+'</div>' : '';
+  return '<article class="topic-card"><div class="topic-card-top"><span class="topic-type">'+topicTypeLabel(item.type)+'</span><span class="topic-source-type">'+topicEscape(item.source_type || '')+'</span></div>' +
+     '<h3>'+topicEscape(item.title)+'</h3>'+orgHTML +
+     '<div class="topic-fields">'+fields+'</div><div class="topic-card-actions">' +
+     '<a class="btn-s topic-link" href="'+topicHref(item.source_url)+'" target="_blank" rel="noopener noreferrer">查看原文</a>' +
+     '<button class="btn-s topic-save" data-topic-id="'+topicEscape(id)+'">加入选题库</button>' +
+     '<button class="btn-s topic-generate-script" data-topic-id="'+topicEscape(id)+'">生成口播稿</button></div></article>';
+}
+
+function topicScriptInput(item) {
+  var lines = [
+    '请根据以下已核验的招聘信息生成一篇适合短视频的中文口播稿。',
+    '只使用下方明确提供的事实，不要补充未提供的日期、待遇、岗位数量或承诺。',
+    '招聘选题：' + topicText(item.title)
+  ];
+  if (topicText(item.organization)) lines.push('机构：' + topicText(item.organization));
+  if (topicText(item.time)) lines.push('时间：' + topicText(item.time));
+  if (topicText(item.application_period)) lines.push('报名时间：' + topicText(item.application_period));
+  if (topicText(item.location)) lines.push('地点：' + topicText(item.location));
+  if (topicText(item.target_audience)) lines.push('招聘对象：' + topicText(item.target_audience));
+  if (topicText(item.companies)) lines.push('参加企业：' + topicText(item.companies));
+  if (topicText(item.positions)) lines.push('岗位：' + topicText(item.positions));
+  if (topicText(item.deadline)) lines.push('报名截止：' + topicText(item.deadline));
+  if (topicText(item.benefits)) lines.push('待遇/编制：' + topicText(item.benefits));
+  if (topicText(item.key_info)) lines.push('关键信息：' + topicText(item.key_info));
+  if (topicText(item.source_url)) lines.push('原文链接：' + topicText(item.source_url));
+  return lines.join('\n');
+}
+
+function setGeneratedScript(script) {
+  var text = String(script || '').trim();
+  var html = topicEscape(text).replace(/\n/g, '<br>');
+  document.getElementById('scriptContent').innerHTML = html;
+  savePref('script_content', html);
+  savePref('saved_script_text', text);
+}
+
+async function generateScriptForTopic(topic, displayTopic, trigger) {
+  topic = String(topic || '').trim();
+  if (!topic) { toast('选题内容为空'); return; }
+  var topicInput = document.getElementById('topicInput');
+  if (topicInput) topicInput.value = String(displayTopic || topic).trim();
+  var btn = trigger || document.getElementById('btnGenerate');
+  var orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '生成中…'; btn.disabled = true; }
+  try {
+    var data = await API.post('/api/scripts/generate', { topic: topic });
+    setGeneratedScript(data.script);
+    var scriptBox = document.getElementById('scriptBox');
+    if (scriptBox) scriptBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast('稿件已生成，可继续编辑或生成视频');
+  } catch (e) {
+    toast('生成失败: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
+function renderSavedTopic(topic, index) {
+  var raw = topic && topic.raw_info && typeof topic.raw_info === 'object' ? topic.raw_info : {};
+  var item = Object.assign({}, raw, {
+    title: topic.title || raw.title || '未命名选题',
+    type: topic.type || raw.type || 'campus_recruitment',
+    source_url: topic.source_url || raw.source_url || '',
+    created_at: topic.created_at || ''
+  });
+  var id = 'saved_topic_' + index;
+  topicLibraryCache[id] = item;
+  var meta = topicText(item.organization || item.source_title || item.source_type);
+  var savedAt = topicText(item.created_at);
+  return '<article class="topic-library-card"><div class="topic-card-top"><span class="topic-type">'+topicTypeLabel(item.type)+'</span><span class="topic-source-type">'+topicEscape(savedAt)+'</span></div>' +
+    '<h3>'+topicEscape(item.title)+'</h3>' + (meta ? '<div class="topic-org">'+topicEscape(meta)+'</div>' : '') +
+    '<div class="topic-card-actions"><a class="btn-s topic-link" href="'+topicHref(item.source_url)+'" target="_blank" rel="noopener noreferrer">查看原文</a>' +
+    '<button class="btn-s topic-library-generate" data-topic-id="'+topicEscape(id)+'">生成口播稿</button></div></article>';
+}
+
+async function loadTopicLibrary() {
+  var list = document.getElementById('topicLibraryList');
+  var count = document.getElementById('topicLibraryCount');
+  if (!list) return;
+  try {
+    var data = await API.get('/api/topics');
+    var items = Array.isArray(data.topics) ? data.topics : [];
+    if (count) count.textContent = items.length + ' 条';
+    topicLibraryCache = {};
+    list.innerHTML = items.length ? items.map(renderSavedTopic).join('') : '<div class="topic-empty">还没有保存的选题。搜索结果里点击“加入选题库”即可保存。</div>';
+    document.querySelectorAll('.topic-library-generate').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = topicLibraryCache[this.dataset.topicId];
+        if (item) generateScriptForTopic(topicScriptInput(item), item.title, this);
+      });
+    });
+  } catch (e) {
+    list.innerHTML = '<div class="topic-empty">选题库加载失败，请点击刷新重试。</div>';
+  }
+}
+
+function renderRecentTopics() {
+  var recent = loadPref('topic_search_history', []);
+  var el = document.getElementById('topicRecent');
+  if (!el || !recent.length) { if (el) el.innerHTML = ''; return; }
+  el.innerHTML = '<span>最近搜索：</span>' + recent.map(function(q) { return '<button class="topic-recent-item" data-topic-query="'+topicEscape(q)+'">'+topicEscape(q)+'</button>'; }).join('');
+}
+
+function rememberTopicQuery(query) {
+  var recent = loadPref('topic_search_history', []);
+  recent = [query].concat(recent.filter(function(item) { return item !== query; })).slice(0, 8);
+  savePref('topic_search_history', recent);
+  renderRecentTopics();
+}
+
+function topicErrorMessage(error) {
+  var message = error && error.message ? error.message : '';
+  try {
+    var parsed = JSON.parse(message);
+    if (parsed && parsed.error) return String(parsed.error);
+  } catch (_) {}
+  if (/failed to fetch|networkerror|网络/i.test(message)) return '无法连接搜索服务，请确认 2.0 程序仍在运行后重试。';
+  if (message && message.length <= 240) return message;
+  return '搜索失败，请稍后重试。';
+}
+
+async function searchTopics(query) {
+  query = String(query || '').trim();
+  if (!query) { toast('请输入想查找的招聘选题'); return; }
+  var input = document.getElementById('topicSearchInput');
+  var btn = document.getElementById('btnTopicSearch');
+  var status = document.getElementById('topicSearchStatus');
+  var results = document.getElementById('topicResults');
+  input.value = query;
+  btn.disabled = true;
+  btn.textContent = '搜索中…';
+  status.textContent = '正在搜索并筛选相关招聘信息……';
+  status.className = 'topic-search-status loading';
+  results.innerHTML = '<div class="topic-empty topic-loading">正在联网搜索、读取页面并整理招聘事实……</div>';
+  try {
+    var data = await API.post('/api/topic-search', {query: query});
+    rememberTopicQuery(query);
+    var items = data.results || [];
+    var searched = data.search_executed === true || data.search_provider === 'deepseek_responses';
+    var searchCalls = Number(data.web_search_call_count || 0);
+    if (items.length) {
+      status.textContent = (data.ai_processed ? 'AI 已核验并整理出 ' : '已筛选出 ') + items.length + ' 条信息' + (items.length < 5 ? '（当前可靠结果不足 5 条）' : '');
+    } else {
+      status.textContent = searched && searchCalls > 0 ? '搜索已完成，但没有通过核验的可靠结果' : '搜索未返回可用结果';
+    }
+    status.className = 'topic-search-status';
+    var emptyMessage = searched && searchCalls > 0 ? '搜索已完成，但当前没有可展示的可靠招聘信息。' : '暂时没有找到足够可靠的相关招聘信息，可以尝试更换关键词。';
+    results.innerHTML = items.length ? items.map(renderTopicCard).join('') : '<div class="topic-empty">'+topicEscape(emptyMessage)+'</div>';
+    bindTopicActions();
+  } catch (e) {
+    var errorMessage = topicErrorMessage(e);
+    status.textContent = errorMessage;
+    status.className = 'topic-search-status error';
+    results.innerHTML = '<div class="topic-empty">'+topicEscape(errorMessage)+'</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '搜索';
+  }
+}
+
+function bindTopicActions() {
+  document.querySelectorAll('[data-topic-query]').forEach(function(el) {
+    if (el.dataset.topicQueryBound === '1') return;
+    el.dataset.topicQueryBound = '1';
+    el.addEventListener('click', function() { searchTopics(this.dataset.topicQuery); });
+  });
+  document.querySelectorAll('.topic-save').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var item = topicResultCache[this.dataset.topicId];
+      if (!item) return;
+      var original = this.textContent;
+      this.disabled = true; this.textContent = '保存中…';
+      try {
+       var response = await API.post('/api/topics', {title:item.title, type:item.type, source_url:item.source_url, raw_info:item});
+       this.textContent = response.saved ? '已加入选题库' : '已在选题库';
+       this.classList.add('saved');
+       loadTopicLibrary();
+      } catch (e) {
+        this.textContent = original; toast('加入选题库失败，请稍后重试');
+      } finally {
+        this.disabled = false;
+      }
+     });
+   });
+  document.querySelectorAll('.topic-generate-script').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var item = topicResultCache[this.dataset.topicId];
+      if (item) generateScriptForTopic(topicScriptInput(item), item.title, this);
     });
   });
 }
@@ -313,6 +644,17 @@ function initMain() {
     topicEl.value = '';
   }
 
+  renderRecentTopics();
+  loadTopicLibrary();
+  document.getElementById('btnRefreshTopics').addEventListener('click', function() { loadTopicLibrary(); });
+  document.getElementById('btnTopicSearch').addEventListener('click', function() {
+    searchTopics(document.getElementById('topicSearchInput').value);
+  });
+  document.getElementById('topicSearchInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); searchTopics(this.value); }
+  });
+  bindTopicActions();
+
   var savedScript = loadPref('script_content', '');
   if (!savedScript) {
     var savedScriptText = loadPref('saved_script_text', '');
@@ -326,16 +668,12 @@ function initMain() {
     }
   }
 
-  API.get('/api/avatars').then(function(avatars) {
-    if (avatars.length === 0) {
-      document.getElementById('avatarList').innerHTML = '<div class="a-card"><div class="img">👤</div><div class="name">请先配置</div></div>';
-    } else {
-      selectedAvatar = loadPref('avatar_id', avatars[0].id);
-      document.getElementById('avatarList').innerHTML = avatars.map(function(a) { return renderAvatarCard(a, a.id === selectedAvatar); }).join('');
-    }
-    radioGroup('.a-card', document.getElementById('avatarList'));
-    document.querySelectorAll('.a-card').forEach(function(c) { c.addEventListener('click', function() { selectedAvatar = this.dataset.id; savePref('avatar_id', selectedAvatar); }); });
-  });
+  loadAvatars();
+
+  API.get('/api/settings').then(function(cfg) {
+    var model = cfg && cfg.llm && cfg.llm.model ? String(cfg.llm.model).trim() : '';
+    document.getElementById('llmOutputLabel').textContent = (model || 'AI') + ' 输出';
+  }).catch(function() {});
 
   API.get('/api/voices').then(function(voices) {
     if (voices.length === 0) {
@@ -356,6 +694,9 @@ function initMain() {
 
   document.getElementById('avatarPrev').addEventListener('click', function() { document.getElementById('avatarList').scrollBy({ left: -210, behavior: 'smooth' }); });
   document.getElementById('avatarNext').addEventListener('click', function() { document.getElementById('avatarList').scrollBy({ left: 210, behavior: 'smooth' }); });
+  document.getElementById('btnRefreshAvatars').addEventListener('click', function() { loadAvatars(this); });
+  // 蝉镜新上传的数字人无需重启工具，后台定期刷新一次列表。
+  setInterval(function() { loadAvatars(); }, 5 * 60 * 1000);
   document.getElementById('voicePrev').addEventListener('click', function() { document.getElementById('voiceList').scrollBy({ left: -220, behavior: 'smooth' }); });
   document.getElementById('voiceNext').addEventListener('click', function() { document.getElementById('voiceList').scrollBy({ left: 220, behavior: 'smooth' }); });
 
@@ -390,16 +731,7 @@ function initMain() {
   document.getElementById('btnGenerate').addEventListener('click', async function() {
     var topic = document.getElementById('topicInput').value.trim();
     if (!topic) { toast('请输入话题'); return; }
-    var btn = this; var orig = btn.textContent;
-    btn.textContent = '生成中...'; btn.disabled = true;
-    try {
-      var data = await API.post('/api/scripts/generate', { topic: topic });
-      document.getElementById('scriptContent').innerHTML = data.script.replace(/\n/g, '<br>');
-      toast('稿件已生成');
-    } catch (e) {
-      toast('生成失败: ' + e.message);
-    }
-    btn.textContent = orig; btn.disabled = false;
+    generateScriptForTopic(topic, topic, this);
   });
 
   document.getElementById('btnCreateVideo').addEventListener('click', async function() {

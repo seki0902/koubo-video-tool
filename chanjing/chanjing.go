@@ -20,6 +20,13 @@ type ClientInterface interface {
 	InvalidateTokenCache()
 }
 
+// CustomisedPersonLister is implemented by clients that can load the user's
+// custom digital-person library from Chanjing. It is kept separate from the
+// video interface so existing test clients and integrations remain compatible.
+type CustomisedPersonLister interface {
+	ListCustomisedPersons(token string, source int) ([]CustomisedPerson, error)
+}
+
 const BaseURL = "https://open-api.chanjing.cc/open/v1"
 
 const tokenCacheDuration = 50 * time.Minute
@@ -31,6 +38,34 @@ type Client struct {
 	tokenMu     sync.Mutex
 	tokenCache  string
 	tokenExpiry time.Time
+}
+
+// CustomisedPerson mirrors the fields needed by the local avatar picker from
+// POST /open/v1/list_customised_person.
+type CustomisedPerson struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	PicURL     string `json:"pic_url"`
+	PreviewURL string `json:"preview_url"`
+	Status     int    `json:"status"`
+	IsOpen     int    `json:"is_open"`
+	Progress   int    `json:"progress"`
+	ErrReason  string `json:"err_reason"`
+	Reason     string `json:"reason"`
+}
+
+type customisedPersonListResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		List     []CustomisedPerson `json:"list"`
+		PageInfo struct {
+			Page       int `json:"page"`
+			Size       int `json:"size"`
+			TotalCount int `json:"total_count"`
+			TotalPage  int `json:"total_page"`
+		} `json:"page_info"`
+	} `json:"data"`
 }
 
 func NewClient(appID, secretKey string) *Client {
@@ -200,6 +235,48 @@ func (c *Client) CreateVideo(token string, req CreateVideoRequest) (string, erro
 		return "", fmt.Errorf("create video failed: code=%d, msg=%s, body=%s", cr.Code, cr.Msg, string(body))
 	}
 	return cr.Data, nil
+}
+
+// ListCustomisedPersons loads all usable custom digital people associated with
+// the current Open app. source=1 means people uploaded through the Chanjing
+// website/app, which is the library users expect to see here.
+func (c *Client) ListCustomisedPersons(token string, source int) ([]CustomisedPerson, error) {
+	const pageSize = 50
+	var result []CustomisedPerson
+	for page := 1; ; page++ {
+		payload, err := json.Marshal(map[string]int{"page": page, "page_size": pageSize, "source": source})
+		if err != nil {
+			return nil, fmt.Errorf("list customised persons marshal: %w", err)
+		}
+		req, err := http.NewRequest("POST", BaseURL+"/list_customised_person", bytes.NewReader(payload))
+		if err != nil {
+			return nil, fmt.Errorf("list customised persons request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("access_token", token)
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("list customised persons request: %w", err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("list customised persons read: %w", readErr)
+		}
+		var parsed customisedPersonListResp
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("list customised persons decode: %w (body=%s)", err, string(body))
+		}
+		if parsed.Code != 0 {
+			return nil, fmt.Errorf("list customised persons failed: code=%d, msg=%s, body=%s", parsed.Code, parsed.Msg, string(body))
+		}
+		result = append(result, parsed.Data.List...)
+		totalPages := parsed.Data.PageInfo.TotalPage
+		if totalPages <= page || len(parsed.Data.List) == 0 {
+			break
+		}
+	}
+	return result, nil
 }
 
 // --- Get Video Status ---

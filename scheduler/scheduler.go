@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	maxPolls    = 30
-	maxInterval = 30 * time.Second
+	maxPolls               = 30
+	maxInterval            = 30 * time.Second
+	maxEmptyFailureRetries = 3
 )
 
 type pendingJob struct {
-	taskID    string
-	token     string
-	pollCount int
-	interval  time.Duration
+	taskID            string
+	token             string
+	pollCount         int
+	interval          time.Duration
+	emptyFailureCount int
 }
 
 type Scheduler struct {
@@ -106,15 +108,25 @@ func (s *Scheduler) Refresh(taskID string) (store.Task, error) {
 		task.Error = ""
 		task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
 	case status.Status >= 40 || status.QueueStatus == "failed":
-		s.mu.Lock()
-		delete(s.jobs, taskID)
-		s.mu.Unlock()
-		task.Status = "failed"
+		task.Error = strings.TrimSpace(task.Error)
 		if task.Error == "" {
-			task.Error = status.QueueDesc
+			task.Error = strings.TrimSpace(status.QueueDesc)
 		}
-		task.VideoURL = ""
-		task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+		if task.Error == "" {
+			// The provider can briefly report a 4X/5X status at 100% and then
+			// settle on completed. Keep polling instead of persisting a false
+			// terminal failure when it gives us no actual failure reason.
+			task.Status = "generating"
+			task.VideoURL = ""
+			s.Add(taskID, token)
+		} else {
+			s.mu.Lock()
+			delete(s.jobs, taskID)
+			s.mu.Unlock()
+			task.Status = "failed"
+			task.VideoURL = ""
+			task.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+		}
 	default:
 		task.Status = "generating"
 		task.VideoURL = ""
@@ -205,12 +217,33 @@ func (s *Scheduler) poll(taskID string) {
 			s.update(taskID, "done", 100, status.VideoURL, "")
 			return
 		case status.Status >= 40 || status.QueueStatus == "failed":
-			s.mu.Lock()
-			delete(s.jobs, taskID)
-			s.mu.Unlock()
-			errMsg := status.Msg
+			errMsg := strings.TrimSpace(status.Msg)
 			if errMsg == "" {
-				errMsg = status.QueueDesc
+				errMsg = strings.TrimSpace(status.QueueDesc)
+			}
+			if errMsg == "" {
+				s.mu.Lock()
+				job, ok := s.jobs[taskID]
+				if !ok {
+					s.mu.Unlock()
+					return
+				}
+				job.emptyFailureCount++
+				if job.emptyFailureCount <= maxEmptyFailureRetries {
+					job.pollCount++
+					job.interval = nextInterval(job.pollCount)
+					s.mu.Unlock()
+					s.update(taskID, "generating", status.Progress, "", "")
+					time.Sleep(interval)
+					continue
+				}
+				delete(s.jobs, taskID)
+				s.mu.Unlock()
+				errMsg = fmt.Sprintf("platform reported failure status %d without a reason", status.Status)
+			} else {
+				s.mu.Lock()
+				delete(s.jobs, taskID)
+				s.mu.Unlock()
 			}
 			s.update(taskID, "failed", status.Progress, "", errMsg)
 			return
@@ -218,6 +251,7 @@ func (s *Scheduler) poll(taskID string) {
 			s.mu.Lock()
 			job.pollCount++
 			job.interval = nextInterval(job.pollCount)
+			job.emptyFailureCount = 0
 			s.mu.Unlock()
 			s.update(taskID, "generating", status.Progress, "", "")
 		}

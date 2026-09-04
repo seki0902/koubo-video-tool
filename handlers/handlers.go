@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,23 +17,36 @@ import (
 	"koubo-video-tool/scheduler"
 	"koubo-video-tool/skill"
 	"koubo-video-tool/store"
+	"koubo-video-tool/topicsearch"
 )
 
 type Handler struct {
-	DataDir   string
-	Store     *StorePaths
-	Chanjing  chanjing.ClientInterface
-	Scheduler *scheduler.Scheduler
+	DataDir               string
+	Store                 *StorePaths
+	Chanjing              chanjing.ClientInterface
+	Scheduler             *scheduler.Scheduler
+	TopicSearch           TopicSearchFunc
+	TopicSearchWithConfig TopicSearchConfigFunc
 }
+
+// TopicSearchFunc is injectable for tests and keeps the HTTP layer independent
+// from the concrete web-search provider.
+type TopicSearchFunc func(ctx context.Context, query, apiURL, apiKey, model string) (topicsearch.Response, error)
+
+// TopicSearchConfigFunc is the production path. It passes the saved search
+// provider credentials to the Agent without coupling tests to config storage.
+type TopicSearchConfigFunc func(ctx context.Context, query string, cfg store.Config) (topicsearch.Response, error)
 
 type StorePaths struct {
 	Config  string
 	Tasks   string
 	Avatars string
 	Voices  string
+	Topics  string
 }
 
 func New(dataDir string, cj chanjing.ClientInterface, sch *scheduler.Scheduler) *Handler {
+	searchService := topicsearch.NewService()
 	return &Handler{
 		DataDir:   dataDir,
 		Chanjing:  cj,
@@ -41,7 +56,9 @@ func New(dataDir string, cj chanjing.ClientInterface, sch *scheduler.Scheduler) 
 			Tasks:   dataDir + "/tasks.json",
 			Avatars: dataDir + "/avatars.json",
 			Voices:  dataDir + "/voices.json",
+			Topics:  dataDir + "/topics.json",
 		},
+		TopicSearchWithConfig: searchService.SearchWithConfigFromStore,
 	}
 }
 
@@ -49,6 +66,8 @@ func (h *Handler) Register() {
 	http.HandleFunc("/api/avatars", h.handleAvatars)
 	http.HandleFunc("/api/voices", h.handleVoices)
 	http.HandleFunc("/api/scripts/generate", h.handleGenerateScript)
+	http.HandleFunc("/api/topic-search", h.handleTopicSearch)
+	http.HandleFunc("/api/topics", h.handleTopics)
 	http.HandleFunc("/api/tasks", h.handleTasks)
 	http.HandleFunc("/api/tasks/", h.handleTaskByID)
 	http.HandleFunc("/api/settings", h.handleSettings)
@@ -60,6 +79,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	writeJSON(w, map[string]string{"error": msg})
 }
@@ -68,10 +88,66 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 func (h *Handler) handleAvatars(w http.ResponseWriter, r *http.Request) {
 	avatars, err := store.LoadAvatars(h.Store.Avatars)
 	if err != nil {
-		writeError(w, 500, "读取形象列表失败")
-		return
+		if !os.IsNotExist(err) {
+			writeError(w, 500, "读取形象列表失败")
+			return
+		}
+		avatars = []store.Avatar{}
+	}
+
+	// 每次读取时从蝉镜同步主站上传的定制数字人。同步失败时保留本地
+	// 缓存，避免临时网络或认证问题导致主界面无法选择已有形象。
+	if lister, ok := h.Chanjing.(chanjing.CustomisedPersonLister); ok {
+		token, tokenErr := h.Chanjing.GetToken()
+		if tokenErr == nil {
+			remote, listErr := lister.ListCustomisedPersons(token, 1)
+			if listErr != nil && strings.Contains(listErr.Error(), "10400") {
+				h.Chanjing.InvalidateTokenCache()
+				if token, tokenErr = h.Chanjing.GetToken(); tokenErr == nil {
+					remote, listErr = lister.ListCustomisedPersons(token, 1)
+				}
+			}
+			if listErr == nil {
+				merged := mergeRemoteAvatars(avatars, remote)
+				if err := store.SaveAvatars(h.Store.Avatars, merged); err == nil {
+					avatars = merged
+				}
+			}
+		}
 	}
 	writeJSON(w, avatars)
+}
+
+func mergeRemoteAvatars(local []store.Avatar, remote []chanjing.CustomisedPerson) []store.Avatar {
+	merged := make([]store.Avatar, 0, len(local)+len(remote))
+	indices := make(map[string]int, len(local)+len(remote))
+	for _, avatar := range local {
+		if strings.TrimSpace(avatar.ID) == "" {
+			continue
+		}
+		indices[avatar.ID] = len(merged)
+		merged = append(merged, avatar)
+	}
+	for _, person := range remote {
+		if strings.TrimSpace(person.ID) == "" || person.Status != 2 || person.IsOpen == 0 {
+			continue
+		}
+		preview := strings.TrimSpace(person.PicURL)
+		if preview == "" {
+			preview = strings.TrimSpace(person.PreviewURL)
+		}
+		avatar := store.Avatar{ID: person.ID, Name: person.Name, PreviewURL: preview}
+		if strings.TrimSpace(avatar.Name) == "" {
+			avatar.Name = avatar.ID
+		}
+		if index, exists := indices[avatar.ID]; exists {
+			merged[index] = avatar
+		} else {
+			indices[avatar.ID] = len(merged)
+			merged = append(merged, avatar)
+		}
+	}
+	return merged
 }
 
 // GET /api/voices
@@ -135,6 +211,114 @@ func (h *Handler) handleGenerateScript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]string{"script": script})
+}
+
+// POST /api/topic-search
+func (h *Handler) handleTopicSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "仅支持 POST")
+		return
+	}
+	var req struct {
+		Query string `json:"query"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	query := strings.TrimSpace(req.Query)
+	if query == "" {
+		writeError(w, http.StatusBadRequest, "搜索词不能为空")
+		return
+	}
+	cfg, err := store.LoadConfig(h.Store.Config)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "读取配置失败")
+		return
+	}
+	if strings.TrimSpace(cfg.LLM.APIURL) == "" || strings.TrimSpace(cfg.LLM.APIKey) == "" {
+		writeError(w, http.StatusBadRequest, "大模型未配置，请在设置中配置 API 地址和密钥")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
+	defer cancel()
+	var result topicsearch.Response
+	if h.TopicSearch != nil {
+		result, err = h.TopicSearch(ctx, query, cfg.LLM.APIURL, cfg.LLM.APIKey, cfg.LLM.Model)
+	} else if h.TopicSearchWithConfig != nil {
+		result, err = h.TopicSearchWithConfig(ctx, query, cfg)
+	} else {
+		result, err = topicsearch.NewService().SearchWithConfigFromStore(ctx, query, cfg)
+	}
+	if err != nil {
+		log.Printf("topic search failed for %q: %v", query, err)
+		writeError(w, http.StatusBadGateway, topicSearchErrorMessage(err))
+		return
+	}
+	if result.Results == nil {
+		result.Results = []topicsearch.Result{}
+	}
+	writeJSON(w, result)
+}
+
+func topicSearchErrorMessage(err error) string {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "联网搜索工具未配置") || strings.Contains(message, "未配置 API Key"):
+		return "搜索服务未配置，请使用本地联网搜索，或选择 Tavily/Brave 并填写对应 API Key"
+	case strings.Contains(message, "AI 整理失败"):
+		return "已调用 AI，但搜索结果整理失败，请检查大模型配置后重试"
+	case strings.Contains(message, "web_search 未执行"):
+		return "DeepSeek 内置搜索没有返回可验证的搜索调用，请重试或检查模型配置"
+	case strings.Contains(message, "Responses 请求失败") || strings.Contains(message, "context deadline exceeded"):
+		return "DeepSeek 搜索请求超时或失败，请稍后重试"
+	case strings.Contains(message, "搜索服务没有返回"):
+		return "本地联网搜索没有返回可用结果，请更换关键词后重试"
+	default:
+		return "搜索失败，请稍后重试"
+	}
+}
+
+// GET /api/topics, POST /api/topics
+func (h *Handler) handleTopics(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		topics, err := store.LoadTopics(h.Store.Topics)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "读取选题库失败")
+			return
+		}
+		writeJSON(w, map[string]any{"topics": topics})
+	case http.MethodPost:
+		var req struct {
+			Title     string             `json:"title"`
+			Type      string             `json:"type"`
+			SourceURL string             `json:"source_url"`
+			RawInfo   topicsearch.Result `json:"raw_info"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 128<<10)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "请求格式错误")
+			return
+		}
+		parsedURL, urlErr := url.Parse(strings.TrimSpace(req.SourceURL))
+		validURL := urlErr == nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https") && parsedURL.Host != ""
+		if strings.TrimSpace(req.Title) == "" || !validURL {
+			writeError(w, http.StatusBadRequest, "选题标题不能为空，原文链接必须是有效的 HTTP(S) 地址")
+			return
+		}
+		topic := store.SavedTopic{
+			Title: req.Title, Type: req.Type, SourceURL: req.SourceURL,
+			RawInfo: req.RawInfo, CreatedAt: time.Now().UTC().Format(time.RFC3339), Status: "saved",
+		}
+		saved, added, err := store.AddTopic(h.Store.Topics, topic)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "保存选题失败")
+			return
+		}
+		writeJSON(w, map[string]any{"saved": added, "topic": saved})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "仅支持 GET / POST")
+	}
 }
 
 const taskRetention = 30 * 24 * time.Hour
@@ -472,6 +656,9 @@ func (h *Handler) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if cfg.LLM.APIKey != "" {
 			cfg.LLM.APIKey = store.MaskedValue
 		}
+		if cfg.Search.APIKey != "" {
+			cfg.Search.APIKey = store.MaskedValue
+		}
 		writeJSON(w, cfg)
 
 	case "PUT":
@@ -490,6 +677,12 @@ func (h *Handler) handleSettings(w http.ResponseWriter, r *http.Request) {
 			old, err := store.LoadConfig(h.Store.Config)
 			if err == nil {
 				cfg.LLM.APIKey = old.LLM.APIKey
+			}
+		}
+		if cfg.Search.APIKey == store.MaskedValue {
+			old, err := store.LoadConfig(h.Store.Config)
+			if err == nil {
+				cfg.Search.APIKey = old.Search.APIKey
 			}
 		}
 		if strings.TrimSpace(cfg.Chanjing.AppID) == "" || strings.TrimSpace(cfg.Chanjing.SecretKey) == "" {

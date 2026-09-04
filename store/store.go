@@ -22,6 +22,10 @@ type Config struct {
 		APIKey string `json:"api_key"`
 		Model  string `json:"model"`
 	} `json:"llm"`
+	Search struct {
+		Provider string `json:"provider"` // "local" | "tavily" | "brave"
+		APIKey   string `json:"api_key"`
+	} `json:"search"`
 	Skill struct {
 		Source           string `json:"source"` // "local" | "github"
 		LocalPath        string `json:"local_path"`
@@ -59,6 +63,17 @@ type Voice struct {
 	Description     string `json:"description"`
 	PreviewAudioURL string `json:"preview_audio_url"`
 	AudioSource     int    `json:"audio_source,omitempty"`
+}
+
+// SavedTopic 是搜索结果加入选题库后的本地记录。RawInfo 保留经过核验的
+// 结构化招聘事实，后续口播生成可以直接使用它，不必再次联网搜索。
+type SavedTopic struct {
+	Title     string `json:"title"`
+	Type      string `json:"type"`
+	SourceURL string `json:"source_url"`
+	RawInfo   any    `json:"raw_info"`
+	CreatedAt string `json:"created_at"`
+	Status    string `json:"status"`
 }
 
 // MaskedValue 用于前端传输时隐藏密钥的真实值
@@ -112,6 +127,12 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("解密 LLM API Key 失败: %w", err)
 	}
 	c.LLM.APIKey = key
+
+	key, err = crypto.Decrypt(c.Search.APIKey)
+	if err != nil {
+		return Config{}, fmt.Errorf("解密搜索 API Key 失败: %w", err)
+	}
+	c.Search.APIKey = key
 	return c, nil
 }
 
@@ -122,6 +143,9 @@ func SaveConfig(path string, c Config) error {
 	}
 	if encrypted, err := crypto.Encrypt(c.LLM.APIKey); err == nil {
 		c.LLM.APIKey = encrypted
+	}
+	if encrypted, err := crypto.Encrypt(c.Search.APIKey); err == nil {
+		c.Search.APIKey = encrypted
 	}
 	return write(path, c)
 }
@@ -294,6 +318,10 @@ func LoadAvatars(path string) ([]Avatar, error) {
 	return a, nil
 }
 
+func SaveAvatars(path string, avatars []Avatar) error {
+	return write(path, avatars)
+}
+
 func LoadVoices(path string) ([]Voice, error) {
 	var v []Voice
 	if err := read(path, &v); err != nil {
@@ -303,4 +331,67 @@ func LoadVoices(path string) ([]Voice, error) {
 		return nil, err
 	}
 	return v, nil
+}
+
+func LoadTopics(path string) ([]SavedTopic, error) {
+	var topics []SavedTopic
+	if err := read(path, &topics); err != nil {
+		if os.IsNotExist(err) {
+			return []SavedTopic{}, nil
+		}
+		return nil, err
+	}
+	return topics, nil
+}
+
+func SaveTopics(path string, topics []SavedTopic) error {
+	return write(path, topics)
+}
+
+// AddTopic 保存一条选题，并按原文 URL 去重，避免重复点击造成重复记录。
+func AddTopic(path string, topic SavedTopic) (SavedTopic, bool, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	topics, err := loadTopicsUnlocked(path)
+	if err != nil {
+		return SavedTopic{}, false, err
+	}
+	for _, existing := range topics {
+		if topic.SourceURL != "" && existing.SourceURL == topic.SourceURL {
+			return existing, false, nil
+		}
+	}
+	topics = append(topics, topic)
+	if err := saveTopicsUnlocked(path, topics); err != nil {
+		return SavedTopic{}, false, err
+	}
+	return topic, true, nil
+}
+
+func loadTopicsUnlocked(path string) ([]SavedTopic, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []SavedTopic{}, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+	var topics []SavedTopic
+	if err := json.NewDecoder(f).Decode(&topics); err != nil {
+		return nil, err
+	}
+	return topics, nil
+}
+
+func saveTopicsUnlocked(path string, topics []SavedTopic) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(topics)
 }

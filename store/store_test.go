@@ -17,6 +17,8 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	c.LLM.APIURL = "https://api.deepseek.com"
 	c.LLM.APIKey = "sk-test"
 	c.LLM.Model = "deepseek-chat"
+	c.Search.Provider = "tavily"
+	c.Search.APIKey = "tv-test"
 	c.Skill.Source = "local"
 	c.Skill.LocalPath = "/tmp/skills"
 
@@ -33,6 +35,9 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if got.LLM.Model != "deepseek-chat" {
 		t.Errorf("Model = %q, want %q", got.LLM.Model, "deepseek-chat")
+	}
+	if got.Search.Provider != "tavily" || got.Search.APIKey != "tv-test" {
+		t.Errorf("Search = %+v, want provider tavily and decrypted API key", got.Search)
 	}
 }
 

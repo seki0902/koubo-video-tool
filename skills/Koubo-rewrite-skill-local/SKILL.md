@@ -112,7 +112,7 @@ TOKEN=$(curl -s -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_t
   -d "{\"app_id\":\"$FEISHU_APP_ID\",\"app_secret\":\"$FEISHU_APP_SECRET\"}" | grep -o '"tenant_access_token":"[^"]*"' | cut -d'"' -f4)
 
 # 写入记录（将实际稿子内容替换 SCRIPT_CONTENT 和 TOPIC_TEXT）
-curl -s -X POST "https://open.feishu.cn/open-apis/bitable/v1/apps/RVHRb525Ca9eqXsDDdlc04U2nyb/tables/tblpKVFF4EMU5mvJ/records" \
+curl -s -X POST "https://open.feishu.cn/open-apis/bitable/v1/apps/$FEISHU_APP_TOKEN/tables/$FEISHU_TABLE_ID/records" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,8 +138,8 @@ curl -s -X POST "https://open.feishu.cn/open-apis/bitable/v1/apps/RVHRb525Ca9eqX
 - `口播稿`：用户选定的那一版稿子（不是全部 2-3 版）
 - `处理状态`：固定写"审核通过"
 - `文案类型`：固定写"口播稿"
-- app_token: `RVHRb525Ca9eqXsDDdlc04U2nyb`
-- table_id: `tblpKVFF4EMU5mvJ`
+- app_token：通过环境变量 `FEISHU_APP_TOKEN` 提供，不写入代码或 Skill
+- table_id：通过环境变量 `FEISHU_TABLE_ID` 提供，不写入代码或 Skill
 
 ---
 

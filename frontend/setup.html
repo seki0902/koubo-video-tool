@@ -13,13 +13,28 @@
 
   <div style="margin-bottom:20px;">
     <div class="field-label">大模型配置</div>
-    <div class="field-sub">用于 AI 生成口播初稿。支持 DeepSeek、OpenAI、Codex、中转站等 OpenAI 兼容接口。不填则无法使用 AI 写稿。</div>
+    <div class="field-sub">用于 AI 生成口播初稿和招聘选题 Agent 的理解、抽取与核验。API 地址为 api.deepseek.com 且使用本地/默认搜索时，选题搜索会调用 DeepSeek 内置 web_search。</div>
     <div class="row" style="margin-top:10px;">
       <div class="field" style="margin-bottom:0;"><input type="text" id="llmUrl" placeholder="API 地址，例如 https://api.deepseek.com"></div>
     </div>
     <div class="row">
       <div class="field" style="margin-bottom:0;"><input type="password" id="llmKey" placeholder="API Key"></div>
       <div class="field" style="margin-bottom:0;"><input type="text" id="llmModel" placeholder="模型名，例如 deepseek-chat"></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <div class="field-label">联网搜索工具（必选）</div>
+    <div class="field-sub">DeepSeek API 会优先使用内置 web_search；其他兼容 API 默认使用本机联网搜索，无需搜索 API Key，也可选用第三方搜索 API。</div>
+    <div class="row" style="margin-top:10px;">
+      <div class="field" style="margin-bottom:0;">
+        <select id="searchProvider">
+          <option value="local">本地联网搜索（无需 API Key）</option>
+          <option value="tavily">Tavily Search API</option>
+          <option value="brave">Brave Search API</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;"><input type="password" id="searchKey" placeholder="第三方搜索 API Key（本地搜索无需填写）"></div>
     </div>
   </div>
 
@@ -80,12 +95,18 @@ function initSetup() {
     var chanjing = cfg.chanjing || {};
     var llm = cfg.llm || {};
     var skill = cfg.skill || {};
+    var search = cfg.search || {};
 
     restoreField('cjAk', 'setup_cjAk', chanjing.app_id);
     SecureStore.getItem('setup_cjSk').then(function(v) { if (v) document.getElementById('cjSk').value = v; });
     restoreField('llmUrl', 'setup_llmUrl', llm.api_url);
     restoreField('llmModel', 'setup_llmModel', llm.model);
     SecureStore.getItem('setup_llmKey').then(function(v) { if (v) document.getElementById('llmKey').value = v; });
+    var savedProvider = loadPref('setup_searchProvider', '');
+    if (savedProvider !== 'local' && savedProvider !== 'tavily' && savedProvider !== 'brave') savedProvider = '';
+    var serverProvider = search.provider === 'local' || search.provider === 'tavily' || search.provider === 'brave' ? search.provider : 'local';
+    document.getElementById('searchProvider').value = savedProvider || serverProvider;
+    SecureStore.getItem('setup_searchKey').then(function(v) { if (v) document.getElementById('searchKey').value = v; });
 
     if (chanjing.app_id) {
       document.getElementById('btnBackToMain').style.display = '';
@@ -110,14 +131,18 @@ function initSetup() {
   API.get('/api/settings').then(restoreSettings).catch(function(){ restoreSettings({}); });
 
   // 绑定自动保存
-  ['cjAk','llmUrl','llmModel','localPathInput','gitUrl'].forEach(function(id){
+  ['cjAk','llmUrl','llmModel','searchProvider','localPathInput','gitUrl'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.addEventListener('input', function(){ autoSave(id, 'setup_'+id); });
   });
+  var searchProviderEl = document.getElementById('searchProvider');
+  if (searchProviderEl) searchProviderEl.addEventListener('change', function(){ autoSave('searchProvider', 'setup_searchProvider'); });
   var cjSkEl = document.getElementById('cjSk');
   if (cjSkEl) cjSkEl.addEventListener('input', function(){ autoSaveSecure('cjSk', 'setup_cjSk'); });
   var llmKeyEl = document.getElementById('llmKey');
   if (llmKeyEl) llmKeyEl.addEventListener('input', function(){ autoSaveSecure('llmKey', 'setup_llmKey'); });
+  var searchKeyEl = document.getElementById('searchKey');
+  if (searchKeyEl) searchKeyEl.addEventListener('input', function(){ autoSaveSecure('searchKey', 'setup_searchKey'); });
 
   // 返回主界面
   document.getElementById('btnBackToMain').addEventListener('click', async function(){
@@ -179,6 +204,7 @@ function initSetup() {
     var cfg = {
       chanjing: { app_id: chanjingAppID, secret_key: chanjingSecretKey },
       llm: { api_url: document.getElementById('llmUrl').value, api_key: document.getElementById('llmKey').value, model: document.getElementById('llmModel').value },
+      search: { provider: document.getElementById('searchProvider').value, api_key: document.getElementById('searchKey').value },
       skill: { source: skillSource, local_path: document.getElementById('localPathInput').value, github_url: document.getElementById('gitUrl').value, github_cache_until: 0 }
     };
 
