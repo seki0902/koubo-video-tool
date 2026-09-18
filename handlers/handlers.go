@@ -279,7 +279,7 @@ func topicSearchErrorMessage(err error) string {
 	}
 }
 
-// GET /api/topics, POST /api/topics
+// GET /api/topics, POST /api/topics, DELETE /api/topics?source_url=...
 func (h *Handler) handleTopics(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -316,8 +316,26 @@ func (h *Handler) handleTopics(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, map[string]any{"saved": added, "topic": saved})
+	case http.MethodDelete:
+		sourceURL := strings.TrimSpace(r.URL.Query().Get("source_url"))
+		parsedURL, urlErr := url.Parse(sourceURL)
+		validURL := urlErr == nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https") && parsedURL.Host != ""
+		if !validURL {
+			writeError(w, http.StatusBadRequest, "source_url 必须是有效的 HTTP(S) 地址")
+			return
+		}
+		deleted, err := store.DeleteTopic(h.Store.Topics, sourceURL)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "删除选题失败")
+			return
+		}
+		if !deleted {
+			writeError(w, http.StatusNotFound, "选题不存在")
+			return
+		}
+		writeJSON(w, map[string]any{"deleted": true, "source_url": sourceURL})
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "仅支持 GET / POST")
+		writeError(w, http.StatusMethodNotAllowed, "仅支持 GET / POST / DELETE")
 	}
 }
 

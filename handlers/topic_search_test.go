@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,5 +82,31 @@ func TestTopicsEndpointPersistsAndDeduplicatesByURL(t *testing.T) {
 	}
 	if len(saved) != 1 {
 		t.Fatalf("saved topics = %d, want 1", len(saved))
+	}
+
+	deleteReq := httptest.NewRequest("DELETE", "/api/topics?source_url="+url.QueryEscape("https://example.com/career"), nil)
+	deleteRec := httptest.NewRecorder()
+	h.handleTopics(deleteRec, deleteReq)
+	if deleteRec.Code != 200 {
+		t.Fatalf("delete status = %d; body = %s", deleteRec.Code, deleteRec.Body.String())
+	}
+	var deleteResponse map[string]any
+	if err := json.NewDecoder(deleteRec.Body).Decode(&deleteResponse); err != nil {
+		t.Fatal(err)
+	}
+	if deleteResponse["deleted"] != true {
+		t.Fatalf("delete response = %+v", deleteResponse)
+	}
+
+	remaining, err := os.ReadFile(filepath.Join(dir, "topics.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var remainingTopics []map[string]any
+	if err := json.Unmarshal(remaining, &remainingTopics); err != nil {
+		t.Fatal(err)
+	}
+	if len(remainingTopics) != 0 {
+		t.Fatalf("remaining topics = %d, want 0", len(remainingTopics))
 	}
 }

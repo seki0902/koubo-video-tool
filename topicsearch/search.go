@@ -155,27 +155,28 @@ func (s *Service) SearchWithConfigFromStore(ctx context.Context, query string, c
 func (s *Service) SearchWithConfig(ctx context.Context, query, apiURL, apiKey, model string, searchConfig SearchConfig) (Response, error) {
 	provider := strings.ToLower(strings.TrimSpace(searchConfig.Provider))
 	if provider == "" || provider == "local" || provider == "html" {
-		if isDeepSeekAPI(apiURL) {
-			return s.searchWithDeepSeekResponses(ctx, query, apiURL, apiKey, model)
+		parsed, err := url.Parse(strings.TrimSpace(apiURL))
+		if err == nil && strings.EqualFold(parsed.Hostname(), "api.deepseek.com") {
+			return s.searchWithDeepSeekNative(ctx, query, apiURL, apiKey, model)
 		}
 		return s.searchWithLocalTool(ctx, query, apiURL, apiKey, model)
 	}
 	return s.searchWithConfig(ctx, query, apiURL, apiKey, model, searchConfig)
 }
 
-func isDeepSeekAPI(apiURL string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(apiURL))
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(parsed.Hostname(), "api.deepseek.com")
+// searchWithDeepSeekResponses is retained as an explicit compatibility probe
+// for the Responses API. It is not used by the application: DeepSeek's
+// Responses compatibility layer currently ignores built-in tools such as
+// web_search. Production uses DeepSeek's Anthropic-compatible native search.
+func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL, apiKey, model string) (Response, error) {
+	return s.searchWithBuiltInSearch(ctx, query, apiURL, apiKey, model, "deepseek_responses", llm.ResponsesJSONContext)
 }
 
-// searchWithDeepSeekResponses is the production path for DeepSeek. It uses
-// the same Responses API + built-in web_search contract as the independent
-// probe, so the app and the probe no longer exercise two different search
-// implementations.
-func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL, apiKey, model string) (Response, error) {
+func (s *Service) searchWithDeepSeekNative(ctx context.Context, query, apiURL, apiKey, model string) (Response, error) {
+	return s.searchWithBuiltInSearch(ctx, query, apiURL, apiKey, model, "deepseek_native", llm.DeepSeekSearchJSONContext)
+}
+
+func (s *Service) searchWithBuiltInSearch(ctx context.Context, query, apiURL, apiKey, model, provider string, search func(context.Context, string, string, string, string) (llm.ResponsesJSONResult, error)) (Response, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return Response{}, fmt.Errorf("搜索词不能为空")
@@ -185,26 +186,26 @@ func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL
 		defer trace.endRequest(ctx)
 	}
 	started := time.Now()
-	trace.emit(ctx, "responses_search_start", map[string]any{"provider": "deepseek_responses"})
-	result, err := llm.ResponsesJSONContext(ctx, apiURL, apiKey, model, deepSeekResponsesPrompt(query))
-	trace.emit(ctx, "responses_search_end", map[string]any{
-		"provider":              "deepseek_responses",
+	trace.emit(ctx, "native_search_start", map[string]any{"provider": provider})
+	result, err := search(ctx, apiURL, apiKey, model, deepSeekResponsesPrompt(query))
+	trace.emit(ctx, "native_search_end", map[string]any{
+		"provider":              provider,
 		"duration_ms":           startedDuration(started),
 		"web_search_call_count": result.WebSearchCallCount,
 		"error":                 errorText(err),
 	})
 	if err != nil {
-		trace.markFailedAt("deepseek_responses")
+		trace.markFailedAt(provider)
 		return Response{}, err
 	}
 	if result.WebSearchCallCount == 0 {
-		trace.markFailedAt("deepseek_responses_no_search")
+		trace.markFailedAt(provider + "_no_search")
 		return Response{}, fmt.Errorf("DeepSeek 内置 web_search 未执行")
 	}
 
 	var out extracted
 	if err := decodeModelJSON(result.Content, &out); err != nil {
-		trace.markFailedAt("deepseek_responses_json")
+		trace.markFailedAt(provider + "_json")
 		return Response{}, fmt.Errorf("AI 整理失败：%w", err)
 	}
 	allResults := append([]Result(nil), out.Results...)
@@ -212,12 +213,12 @@ func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL
 	filtered := filterDeepSeekResults(allResults, query)
 	if len(filtered) < minTopicResults && ctx.Err() == nil {
 		trace.emit(ctx, "responses_search_retry_start", map[string]any{
-			"provider":     "deepseek_responses",
+			"provider":     provider,
 			"result_count": len(filtered),
 		})
-		retry, retryErr := llm.ResponsesJSONContext(ctx, apiURL, apiKey, model, deepSeekResponsesRetryPrompt(query, len(filtered)))
+		retry, retryErr := search(ctx, apiURL, apiKey, model, deepSeekResponsesRetryPrompt(query, len(filtered)))
 		trace.emit(ctx, "responses_search_retry_end", map[string]any{
-			"provider":              "deepseek_responses",
+			"provider":              provider,
 			"web_search_call_count": retry.WebSearchCallCount,
 			"error":                 errorText(retryErr),
 		})
@@ -235,7 +236,7 @@ func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL
 		}
 	}
 	trace.emit(ctx, "final_json_end", map[string]any{
-		"phase":        "deepseek_responses",
+		"phase":        provider,
 		"duration_ms":  0,
 		"result_count": len(filtered),
 		"empty_result": len(filtered) == 0,
@@ -245,7 +246,7 @@ func (s *Service) searchWithDeepSeekResponses(ctx context.Context, query, apiURL
 		TotalFound:          len(filtered),
 		Results:             filtered,
 		AIProcessed:         true,
-		SearchProvider:      "deepseek_responses",
+		SearchProvider:      provider,
 		SearchExecuted:      true,
 		WebSearchCallCount:  webSearchCallCount,
 		RawResultCount:      len(allResults),

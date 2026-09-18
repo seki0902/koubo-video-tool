@@ -95,6 +95,11 @@ input:focus, select:focus { border-color: #5958d9; box-shadow: 0 0 0 3px rgba(89
 .topic-chip, .topic-recent-item { border:1px solid #dedee5; border-radius:999px; background:#fff; color:#5c5b74; cursor:pointer; padding:5px 10px; font:inherit; }
 .topic-chip:hover, .topic-recent-item:hover { border-color:#5958d9; color:#5958d9; }
 .topic-results { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+.topic-result-viewer { display:flex; flex-direction:column; gap:10px; }
+.topic-result-nav { display:flex; align-items:center; justify-content:center; gap:12px; color:#86868b; font-size:11px; }
+.topic-result-nav-btn { width:30px; height:30px; border:1px solid #d1d1d6; border-radius:50%; background:#fff; color:#4a5068; cursor:pointer; font-size:20px; line-height:1; }
+.topic-result-nav-btn:hover { border-color:#5958d9; color:#5958d9; }
+.topic-result-nav-btn:disabled { opacity:.4; cursor:default; }
 .topic-library { margin-top:16px; padding:18px; border:1px solid #e5e5e7; border-radius:14px; background:#fff; }
 .topic-library-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .topic-library-count { margin-left:5px; font-size:11px; color:#86868b; font-weight:400; }
@@ -112,7 +117,7 @@ input:focus, select:focus { border-color: #5958d9; box-shadow: 0 0 0 3px rgba(89
 .topic-field span { width:58px; flex-shrink:0; color:#86868b; }
 .topic-field strong { color:#3a3a3c; font-weight:450; word-break:break-word; }
 .topic-card-actions { display:flex; gap:8px; margin-top:13px; padding-top:11px; border-top:1px solid #f0f0f2; }
-.topic-card-actions .topic-link, .topic-card-actions .topic-save, .topic-card-actions .topic-generate-script, .topic-card-actions .topic-library-generate { padding:6px 11px; font-size:11px; text-decoration:none; }
+.topic-card-actions .topic-link, .topic-card-actions .topic-save, .topic-card-actions .topic-generate-script, .topic-card-actions .topic-library-generate, .topic-card-actions .topic-library-delete { padding:6px 11px; font-size:11px; text-decoration:none; }
 .topic-save.saved { color:#239559; border-color:#b4dfc5; background:#f4fbf6; }
 .topic-empty { padding:18px 8px; color:#86868b; text-align:center; font-size:12px; }
 .topic-loading { color:#b4760e; }

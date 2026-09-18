@@ -369,6 +369,29 @@ func AddTopic(path string, topic SavedTopic) (SavedTopic, bool, error) {
 	return topic, true, nil
 }
 
+// DeleteTopic removes a saved topic by its source URL. SourceURL is the
+// stable identifier used by AddTopic for deduplication.
+func DeleteTopic(path, sourceURL string) (bool, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	topics, err := loadTopicsUnlocked(path)
+	if err != nil {
+		return false, err
+	}
+	for i, topic := range topics {
+		if topic.SourceURL != sourceURL {
+			continue
+		}
+		topics = append(topics[:i], topics[i+1:]...)
+		if err := saveTopicsUnlocked(path, topics); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 func loadTopicsUnlocked(path string) ([]SavedTopic, error) {
 	f, err := os.Open(path)
 	if err != nil {

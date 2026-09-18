@@ -84,22 +84,24 @@ build.bat
 
 主界面顶部的“AI 选题搜索”支持自然语言输入，例如“香港外企”“江浙沪招聘会”或“QS100人才引进”。这是一个小型招聘搜索 Agent：先由大模型理解需求并扩展查询词，再联网搜索候选页面，最后由大模型依据搜索证据抽取招聘事实、过滤过期或不相关信息并去重。前端只展示结构化事实和原文链接，不展示内部评分。
 
-搜索服务默认使用本地联网搜索，不需要 Tavily、Brave 或其他搜索 API Key。对于 `https://api.deepseek.com`，程序会直接调用 DeepSeek Responses API 的内置 `web_search`；其他兼容 API 则由本地程序访问搜索引擎页面、抓取候选网页，再把搜索证据作为 tool message 回传给模型。
+使用 DeepSeek API 时，默认通过 DeepSeek 的 Anthropic 兼容接口调用其原生联网搜索，不需要额外的搜索 API Key；其他兼容 API 默认使用本地联网搜索。
+
+DeepSeek 原生搜索使用 `/anthropic/v1/messages` 和 `web_search_20250305`，从 `server_tool_use` 和 `web_search_tool_result` 识别真实搜索。Responses 接口目前会忽略内置搜索工具，已不再用于生产搜索。
 
 如果希望使用结构化搜索 API，也可以选择：
 
 - `Tavily Search API`：推荐，返回结构化搜索结果，稳定性较好。
 - `Brave Search API`：返回结构化网页搜索结果，也需要单独的 API Key。
 
-使用 DeepSeek API 时，内置 `web_search` 和 Responses API 在同一条调用链中完成搜索与整理；使用其他兼容 API 时，搜索工具和大模型仍是两条独立链路。本地搜索或第三方搜索 API 都可以作为后者的证据来源。
+DeepSeek 默认由其服务端完成搜索与整理；其他接口可使用本地搜索或可选的 Tavily/Brave。
 
 如果 AI 抽取或核验失败，接口会返回失败状态，不会把网页标题直接冒充成 AI 结果。
 
 搜索结果可通过“加入选题库”保存到运行目录的 `data/topics.json`，保留完整的 `raw_info`，后续可直接作为口播稿生成的结构化上下文。
 
-### DeepSeek 内置 web_search 测试
+### DeepSeek Responses 能力探针
 
-独立探针位于 `experiments/deepseek-responses-web-search/test_web_search.py`。它会对每个测试 query 依次运行 `basic`、`strict`、`extreme` 三档 prompt，并保存完整 Responses API response、最终 JSON、耗时、token 用量、`web_search_call` 计数、输出契约校验和 URL 可访问性。
+独立探针位于 `experiments/deepseek-responses-web-search/test_web_search.py`，用于审计 DeepSeek Responses 接口对 `web_search` 的兼容情况；它不是应用的生产搜索路径。
 
 ```powershell
 $env:DEEPSEEK_API_KEY = "你的 API Key"
